@@ -52,8 +52,8 @@ DEFAULT_DATA_FILE = "hf_wild/metadata.csv"
 DEFAULT_OUTPUT_FILE = "evaluation_results.json"
 
 # Judge model: used to verify model answers against ground truth.
-# Set to any key in SUPPORTED_MODELS or an OpenRouter model ID (e.g. "openai/gpt-4o").
-JUDGE_MODEL = "gpt4o"
+# Set to any key in SUPPORTED_MODELS or an OpenRouter model ID (e.g. "openai/gpt-5.2").
+JUDGE_MODEL = "openai/gpt-5.2"
 
 # ---------------------------------------------------------------------------
 # Prompts
@@ -186,18 +186,27 @@ def load_image_base64(image_path: str) -> str:
 # Judging
 # ---------------------------------------------------------------------------
 
-def _call_judge(prompt: str) -> str:
+def _call_judge(prompt: str, retries: int = 3, backoff: float = 2.0) -> str:
     fn = SUPPORTED_MODELS.get(JUDGE_MODEL)
-    if fn is not None:
-        response = fn(prompt)
-    elif "/" in JUDGE_MODEL:
-        response = run_openrouter_model(JUDGE_MODEL, prompt)
-    else:
-        raise ValueError(f"Unknown judge model: {JUDGE_MODEL!r}. "
-                         "Use a key from SUPPORTED_MODELS or an OpenRouter model ID.")
-    if isinstance(response, dict):
-        response = response.get("content", "") or ""
-    return (response or "").strip()
+    for attempt in range(retries):
+        try:
+            if fn is not None:
+                response = fn(prompt)
+            elif "/" in JUDGE_MODEL:
+                response = run_openrouter_model(JUDGE_MODEL, prompt)
+            else:
+                raise ValueError(f"Unknown judge model: {JUDGE_MODEL!r}. "
+                                 "Use a key from SUPPORTED_MODELS or an OpenRouter model ID.")
+            if isinstance(response, dict):
+                response = response.get("content", "") or ""
+            result = (response or "").strip()
+            if result and not result.startswith("Error"):
+                return result
+        except Exception as e:
+            print(f"[Judge] attempt {attempt + 1}/{retries} failed: {e}")
+        if attempt < retries - 1:
+            time.sleep(backoff * (attempt + 1))
+    return ""
 
 
 def judge_answer(

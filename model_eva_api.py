@@ -185,7 +185,7 @@ def run_openai_model(
     model_id: str,
     question: str,
     image_data: List[str] = None,
-    max_tokens: int = 16384,
+    max_tokens: int = 65536,
     base_url: str = None,
 ) -> dict:
     """Call OpenAI API directly (or any OpenAI-compatible endpoint).
