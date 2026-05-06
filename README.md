@@ -2,7 +2,7 @@
 
 **WildTableBench** is a multimodal benchmark for evaluating vision-language models on real-world table understanding. It contains **928 questions** across **402 images** spanning 5 categories and 17 subtypes.
 
-📄 Paper: *coming soon*  
+📄 Paper: [WildTableBench: Benchmarking Multimodal Foundation Models on Table Understanding In the Wild](https://arxiv.org/abs/2605.01018)  
 🤗 Dataset: [jzhuang/WildTableBench](https://huggingface.co/datasets/jzhuang/WildTableBench)
 
 ---
@@ -150,8 +150,10 @@ python evaluate.py --help
 ## Citation
 
 ```bibtex
-@article{wildtablebench2026,
-  title   = {WildTableBench: A Multimodal Benchmark for Real-World Table Understanding},
-  year    = {2026},
+@article{huang2025wildtablebench,
+  title   = {WildTableBench: Benchmarking Multimodal Foundation Models on Table Understanding In the Wild},
+  author  = {Junzhe Huang and Xiaoxiao Sun and Yan Yang and Yuxuan Hou and Ruotian Zhang and Sirui Li and Hehe Fan and Serena Yeung-Levy and Xin Yu},
+  journal = {arXiv preprint arXiv:2605.01018},
+  year    = {2025},
 }
 ```
