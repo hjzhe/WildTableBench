@@ -1,0 +1,524 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="description" content="WildTableBench: Benchmarking Multimodal Foundation Models on Table Understanding In the Wild">
+  <meta property="og:title" content="WildTableBench"/>
+  <meta property="og:description" content="A benchmark for naturally occurring table images from real-world settings. 402 images, 928 questions, 17 subtypes, 21 models evaluated."/>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>WildTableBench</title>
+
+  <link href="https://fonts.googleapis.com/css?family=Google+Sans|Noto+Sans|Castoro" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bulma@0.9.4/css/bulma.min.css">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/jpswalsh/academicons@1/css/academicons.min.css">
+  <!-- DataTables -->
+  <link rel="stylesheet" href="https://cdn.datatables.net/1.13.6/css/jquery.dataTables.min.css">
+  <script src="https://code.jquery.com/jquery-3.7.0.min.js"></script>
+  <script src="https://cdn.datatables.net/1.13.6/js/jquery.dataTables.min.js"></script>
+
+  <style>
+    body { font-family: 'Noto Sans', sans-serif; }
+    .publication-title { font-family: 'Google Sans', sans-serif; }
+    .hero { background: linear-gradient(135deg, #1e3a5f 0%, #2d6a9f 100%); }
+    .hero .title, .hero .subtitle { color: white !important; }
+    .hero .author-block { color: rgba(255,255,255,0.9); }
+    .hero .affil-block { color: rgba(255,255,255,0.75); font-size: 0.9em; }
+    .hero .button { margin: 4px; }
+
+    .stat-box { background: #f0f6ff; border-radius: 12px; padding: 1.5rem; text-align: center; border: 2px solid #dbeafe; }
+    .stat-number { font-size: 2.5rem; font-weight: 800; color: #1e40af; }
+    .stat-label { font-size: 0.95rem; color: #6b7280; margin-top: 0.25rem; }
+
+    /* Category color badges */
+    .tag-c1 { background: #dbeafe; color: #1e3a8a; font-weight: 600; }
+    .tag-c2 { background: #ffedd5; color: #7c2d12; font-weight: 600; }
+    .tag-c3 { background: #dcfce7; color: #14532d; font-weight: 600; }
+    .tag-c4 { background: #f3e8ff; color: #4c1d95; font-weight: 600; }
+    .tag-c5 { background: #ffe4e6; color: #881337; font-weight: 600; }
+
+    /* Leaderboard table */
+    #leaderboardTable { font-size: 0.88rem; }
+    #leaderboardTable thead th { background: #1e3a5f; color: white; text-align: center; white-space: nowrap; }
+    #leaderboardTable tbody td { text-align: center; vertical-align: middle; }
+    #leaderboardTable tbody td:nth-child(2) { text-align: left; font-weight: 600; }
+    #leaderboardTable tbody tr:hover { background: #f0f9ff; }
+    .rank-gold { color: #d97706; font-weight: 800; font-size: 1.1rem; }
+    .rank-silver { color: #6b7280; font-weight: 700; }
+    .rank-bronze { color: #92400e; font-weight: 700; }
+    .type-prop { background: #fef3c7; color: #78350f; border-radius: 4px; padding: 2px 6px; font-size: 0.78rem; white-space: nowrap; }
+    .type-open-t { background: #d1fae5; color: #065f46; border-radius: 4px; padding: 2px 6px; font-size: 0.78rem; white-space: nowrap; }
+    .type-open-i { background: #e0e7ff; color: #3730a3; border-radius: 4px; padding: 2px 6px; font-size: 0.78rem; white-space: nowrap; }
+    .best-score { font-weight: 800; color: #1e3a5f; }
+    .dataTables_wrapper { overflow-x: auto; }
+    table.dataTable { width: 100% !important; }
+
+    /* Heat map colors */
+    .heat-0  { background: #D18683; color: #fff; }
+    .heat-1  { background: #D99693; color: #fff; }
+    .heat-2  { background: #E8BBB6; }
+    .heat-3  { background: #F3DAD6; }
+    .heat-4  { background: #FBF4EC; }
+    .heat-5  { background: #D9E8DC; }
+    .heat-6  { background: #9FC4AE; }
+
+    .section-title { border-left: 4px solid #1e40af; padding-left: 1rem; margin-bottom: 1.5rem; }
+    footer { background: #1e3a5f; color: white; padding: 2rem; text-align: center; }
+    footer a { color: #93c5fd; }
+  </style>
+</head>
+<body>
+
+<!-- Hero -->
+<section class="hero">
+  <div class="hero-body">
+    <div class="container is-max-desktop has-text-centered">
+      <h1 class="title is-1 publication-title" style="font-size:2.4rem; margin-bottom: 0.5rem;">
+        WildTableBench
+      </h1>
+      <p class="subtitle is-4" style="margin-bottom: 1rem;">
+        Benchmarking Multimodal Foundation Models on<br>Table Understanding In the Wild
+      </p>
+      <div class="author-block mb-2" style="font-size:1.05rem;">
+        Junzhe Huang<sup>1</sup>, Xiaoxiao Sun<sup>2</sup>, Yan Yang<sup>3</sup>, Yuxuan Hou<sup>4</sup>,
+        Ruotian Zhang<sup>4</sup>, Sirui Li<sup>5</sup>,
+        Hehe Fan<sup>4</sup>, Serena Yeung-Levy<sup>2</sup>, Xin Yu<sup>6</sup>
+      </div>
+      <div class="affil-block mb-4" style="font-size:0.88rem;">
+        <sup>1</sup>University of Queensland &nbsp;·&nbsp;
+        <sup>2</sup>Stanford University &nbsp;·&nbsp;
+        <sup>3</sup>Australian National University &nbsp;·&nbsp;
+        <sup>4</sup>Zhejiang University &nbsp;·&nbsp;
+        <sup>5</sup>Murdoch University &nbsp;·&nbsp;
+        <sup>6</sup>University of Adelaide
+      </div>
+      <div>
+        <a class="button is-rounded is-dark" href="https://arxiv.org/abs/2605.01018" target="_blank">
+          <span class="icon"><i class="ai ai-arxiv"></i></span><span>arXiv</span>
+        </a>
+        <a class="button is-rounded is-dark" href="https://github.com/hjzhe/WildTableBench" target="_blank">
+          <span class="icon"><i class="fab fa-github"></i></span><span>GitHub</span>
+        </a>
+        <a class="button is-rounded is-dark" href="https://huggingface.co/datasets/jzhuang/WildTableBench" target="_blank">
+          <span class="icon"><i class="fas fa-database"></i></span><span>Dataset (HF)</span>
+        </a>
+        <a class="button is-rounded is-info" href="#leaderboard">
+          <span class="icon"><i class="fas fa-trophy"></i></span><span>Leaderboard</span>
+        </a>
+      </div>
+    </div>
+  </div>
+</section>
+
+
+<!-- Example -->
+<section class="section pb-0">
+  <div class="container is-max-desktop">
+    <h2 class="title is-3 section-title">Benchmark Example</h2>
+    <div class="columns is-vcentered">
+      <div class="column is-half">
+        <figure class="image" style="border: 1px solid #e5e7eb; border-radius: 8px; overflow: hidden;">
+          <img src="teaser_example.jpg" alt="WildTableBench teaser example - train schedule table">
+        </figure>
+      </div>
+      <div class="column is-half">
+        <div class="box" style="background: #f8fafc; border-left: 4px solid #1e40af;">
+          <p class="mb-3"><strong>Question:</strong> A person plans to experience the scenic train ride after 5:00 PM but before 7:00 PM. How many days fit this schedule in 2025?</p>
+          <p class="mb-4"><strong>Answer:</strong> <span style="background: #86efac; padding: 2px 10px; border-radius: 4px; font-weight: 700;">26</span></p>
+          <table class="table is-narrow is-fullwidth" style="font-size: 0.9rem;">
+            <tbody>
+              <tr>
+                <td>🟢 <strong>Gemini-3-Pro</strong></td>
+                <td><span style="background:#fee2e2; color:#991b1b; padding:2px 8px; border-radius:4px; font-weight:600;">✗ 18</span></td>
+              </tr>
+              <tr>
+                <td>⚫ <strong>GPT-5.2</strong></td>
+                <td><span style="background:#fee2e2; color:#991b1b; padding:2px 8px; border-radius:4px; font-weight:600;">✗ 2</span></td>
+              </tr>
+              <tr>
+                <td>🟤 <strong>Claude-Opus-4.6</strong></td>
+                <td><span style="background:#fee2e2; color:#991b1b; padding:2px 8px; border-radius:4px; font-weight:600;">✗ 4</span></td>
+              </tr>
+            </tbody>
+          </table>
+          <div class="tags mt-3">
+            <span class="tag" style="background:#dbeafe; color:#1e3a8a;">Transportation</span>
+            <span class="tag" style="background:#ccfbf1; color:#0f766e;">Color-based Counting</span>
+            <span class="tag" style="background:#fef3c7; color:#78350f;">Multi-hop Reasoning</span>
+            <span class="tag" style="background:#fee2e2; color:#991b1b;">Visual Parsing</span>
+          </div>
+        </div>
+      </div>
+    </div>
+    <p class="has-text-centered has-text-grey is-size-7 mt-2">All three frontier models answer incorrectly, illustrating the difficulty of in-the-wild table understanding.</p>
+  </div>
+</section>
+
+<!-- Abstract -->
+<section class="section">
+  <div class="container is-max-desktop">
+    <h2 class="title is-3 section-title">Abstract</h2>
+    <div class="content">
+      <p>
+        Using multimodal foundation models to analyze table images is a high-value yet challenging application in consumer and enterprise scenarios. Despite its importance, current evaluations rely largely on structured-text tables or clean rendered images, leaving the visual complexity of <em>in-the-wild</em> table images underexplored.
+      </p>
+      <p>
+        We introduce <strong>WildTableBench</strong>, the first question-answering benchmark for naturally occurring table images from real-world settings. WildTableBench comprises <strong>402 high-information-density table images</strong> collected from online forums and websites across diverse domains, together with <strong>928 manually annotated and verified questions</strong> spanning 17 subtypes across five categories.
+      </p>
+      <p>
+        We evaluate <strong>21 frontier proprietary and open-source multimodal foundation models</strong>. Only one model exceeds 50% accuracy, while all remaining models range from 4.1% to 49.9%, revealing persistent weaknesses in structural perception and numerical reasoning.
+      </p>
+    </div>
+  </div>
+</section>
+
+<!-- Taxonomy -->
+<section class="section pt-0">
+  <div class="container is-max-desktop">
+    <h2 class="title is-3 section-title">Question Taxonomy</h2>
+    <div class="columns is-multiline">
+      <div class="column is-one-fifth">
+        <div class="card" style="border-top: 4px solid #1e3a8a; height:100%;">
+          <div class="card-content">
+            <span class="tag tag-c1 mb-2">C1 · Cell-Level</span>
+            <p class="is-size-7 mt-2"><strong>C1-T</strong> Transcription<br><strong>C1-L</strong> Cell Locating<br><strong>C1-S</strong> Semantic Lookup<br><strong>C1-F</strong> Excel Formula</p>
+          </div>
+        </div>
+      </div>
+      <div class="column is-one-fifth">
+        <div class="card" style="border-top: 4px solid #7c2d12; height:100%;">
+          <div class="card-content">
+            <span class="tag tag-c2 mb-2">C2 · Numerical</span>
+            <p class="is-size-7 mt-2"><strong>C2-B</strong> Basic Numerical<br><strong>C2-R</strong> Ranking<br><strong>C2-C</strong> Conditional Numerical<br><strong>C2-M</strong> Multi-step Conditional</p>
+          </div>
+        </div>
+      </div>
+      <div class="column is-one-fifth">
+        <div class="card" style="border-top: 4px solid #14532d; height:100%;">
+          <div class="card-content">
+            <span class="tag tag-c3 mb-2">C3 · Verification</span>
+            <p class="is-size-7 mt-2"><strong>C3-V</strong> Value Verification<br><strong>C3-A</strong> Aggregate Verification<br><strong>C3-C</strong> Conditional Verification</p>
+          </div>
+        </div>
+      </div>
+      <div class="column is-one-fifth">
+        <div class="card" style="border-top: 4px solid #4c1d95; height:100%;">
+          <div class="card-content">
+            <span class="tag tag-c4 mb-2">C4 · Hypothetical</span>
+            <p class="is-size-7 mt-2"><strong>C4-R</strong> Row Operation<br><strong>C4-M</strong> Value Modification<br><strong>C4-H</strong> Hypothetical Condition</p>
+          </div>
+        </div>
+      </div>
+      <div class="column is-one-fifth">
+        <div class="card" style="border-top: 4px solid #881337; height:100%;">
+          <div class="card-content">
+            <span class="tag tag-c5 mb-2">C5 · Color</span>
+            <p class="is-size-7 mt-2"><strong>C5-I</strong> Color Identification<br><strong>C5-C</strong> Color-based Counting<br><strong>C5-R</strong> Color-based Reasoning</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- Leaderboard -->
+<section class="section" id="leaderboard">
+  <div class="container is-max-widescreen">
+    <h2 class="title is-3 section-title">Leaderboard</h2>
+    <p class="mb-4 has-text-grey">Results on WildTableBench (928 questions, 402 images). Click column headers to sort. Best score per column in <strong>bold</strong>.</p>
+    <p class="mb-4 has-text-grey is-size-7">
+      <span class="type-prop">Proprietary</span> &nbsp;
+      <span class="type-open-t">Open · Thinking</span> &nbsp;
+      <span class="type-open-i">Open · Instruct</span>
+    </p>
+
+    <div class="dataTables_wrapper">
+      <table id="leaderboardTable" class="display table is-bordered is-striped is-hoverable" style="width:100%">
+        <thead>
+          <tr>
+            <th>Rank</th>
+            <th>Model</th>
+            <th>Type</th>
+            <th title="C1: Cell-Level (4 subtypes)">C1<br><small>Cell</small></th>
+            <th title="C2: Numerical (4 subtypes)">C2<br><small>Num.</small></th>
+            <th title="C3: Verification (3 subtypes)">C3<br><small>Verif.</small></th>
+            <th title="C4: Hypothetical (3 subtypes)">C4<br><small>Hypo.</small></th>
+            <th title="C5: Color (3 subtypes)">C5<br><small>Color</small></th>
+            <th>Overall</th>
+          </tr>
+        </thead>
+        <tbody>
+          <!-- Proprietary -->
+          <tr>
+            <td class="rank-gold">🥇 1</td>
+            <td>Gemini-3-Pro</td>
+            <td><span class="type-prop">Proprietary</span></td>
+            <td class="best-score">62.8</td>
+            <td class="best-score">71.9</td>
+            <td class="best-score">71.6</td>
+            <td class="best-score">75.3</td>
+            <td class="best-score">55.8</td>
+            <td class="best-score">67.9</td>
+          </tr>
+          <tr>
+            <td class="rank-silver">🥈 2</td>
+            <td>Kimi-K2.5</td>
+            <td><span class="type-open-t">Open · Thinking</span></td>
+            <td>47.6</td>
+            <td>50.6</td>
+            <td>67.2</td>
+            <td>55.1</td>
+            <td>37.5</td>
+            <td>49.9</td>
+          </tr>
+          <tr>
+            <td class="rank-bronze">🥉 3</td>
+            <td>Gemini-3-Flash</td>
+            <td><span class="type-prop">Proprietary</span></td>
+            <td>51.0</td>
+            <td>49.7</td>
+            <td>58.2</td>
+            <td>55.1</td>
+            <td>37.5</td>
+            <td>49.4</td>
+          </tr>
+          <tr>
+            <td>4</td>
+            <td>Seed-2.0-Pro</td>
+            <td><span class="type-prop">Proprietary</span></td>
+            <td>59.3</td>
+            <td>44.9</td>
+            <td>68.7</td>
+            <td>44.9</td>
+            <td>32.5</td>
+            <td>47.8</td>
+          </tr>
+          <tr>
+            <td>5</td>
+            <td>GPT-5.2</td>
+            <td><span class="type-prop">Proprietary</span></td>
+            <td>53.1</td>
+            <td>45.8</td>
+            <td>56.7</td>
+            <td>55.1</td>
+            <td>29.2</td>
+            <td>46.6</td>
+          </tr>
+          <tr>
+            <td>6</td>
+            <td>Claude-Opus-4.6</td>
+            <td><span class="type-prop">Proprietary</span></td>
+            <td>51.7</td>
+            <td>46.7</td>
+            <td>61.2</td>
+            <td>53.9</td>
+            <td>20.8</td>
+            <td>45.7</td>
+          </tr>
+          <tr>
+            <td>7</td>
+            <td>Claude-Sonnet-4.6</td>
+            <td><span class="type-prop">Proprietary</span></td>
+            <td>35.9</td>
+            <td>34.1</td>
+            <td>49.3</td>
+            <td>49.4</td>
+            <td>17.5</td>
+            <td>35.0</td>
+          </tr>
+          <tr>
+            <td>8</td>
+            <td>Qwen3-VL-235B-Thinking</td>
+            <td><span class="type-open-t">Open · Thinking</span></td>
+            <td>37.9</td>
+            <td>33.5</td>
+            <td>41.8</td>
+            <td>39.3</td>
+            <td>26.7</td>
+            <td>34.7</td>
+          </tr>
+          <tr>
+            <td>9</td>
+            <td>Qwen3-VL-32B-Thinking</td>
+            <td><span class="type-open-t">Open · Thinking</span></td>
+            <td>28.3</td>
+            <td>27.8</td>
+            <td>40.3</td>
+            <td>20.2</td>
+            <td>28.3</td>
+            <td>28.2</td>
+          </tr>
+          <tr>
+            <td>10</td>
+            <td>GPT-5-mini</td>
+            <td><span class="type-prop">Proprietary</span></td>
+            <td>20.7</td>
+            <td>24.3</td>
+            <td>41.8</td>
+            <td>33.7</td>
+            <td>18.3</td>
+            <td>25.3</td>
+          </tr>
+          <tr>
+            <td>11</td>
+            <td>Qwen3-VL-235B-Instruct</td>
+            <td><span class="type-open-i">Open · Instruct</span></td>
+            <td>22.8</td>
+            <td>26.6</td>
+            <td>34.3</td>
+            <td>21.3</td>
+            <td>21.7</td>
+            <td>25.2</td>
+          </tr>
+          <tr>
+            <td>12</td>
+            <td>Qwen3-VL-32B-Instruct</td>
+            <td><span class="type-open-i">Open · Instruct</span></td>
+            <td>24.8</td>
+            <td>22.5</td>
+            <td>41.8</td>
+            <td>27.0</td>
+            <td>18.3</td>
+            <td>24.5</td>
+          </tr>
+          <tr>
+            <td>13</td>
+            <td>GLM-4.6V</td>
+            <td><span class="type-open-t">Open · Thinking</span></td>
+            <td>17.9</td>
+            <td>24.0</td>
+            <td>34.3</td>
+            <td>27.0</td>
+            <td>25.8</td>
+            <td>24.4</td>
+          </tr>
+          <tr>
+            <td>14</td>
+            <td>GPT-o3</td>
+            <td><span class="type-prop">Proprietary</span></td>
+            <td>17.2</td>
+            <td>11.4</td>
+            <td>32.8</td>
+            <td>10.1</td>
+            <td>15.0</td>
+            <td>14.8</td>
+          </tr>
+          <tr>
+            <td>15</td>
+            <td>Qwen3-VL-8B-Thinking</td>
+            <td><span class="type-open-t">Open · Thinking</span></td>
+            <td>9.0</td>
+            <td>15.0</td>
+            <td>28.4</td>
+            <td>16.9</td>
+            <td>11.7</td>
+            <td>14.7</td>
+          </tr>
+          <tr>
+            <td>16</td>
+            <td>Qwen3-VL-8B-Instruct</td>
+            <td><span class="type-open-i">Open · Instruct</span></td>
+            <td>10.3</td>
+            <td>8.7</td>
+            <td>17.9</td>
+            <td>9.0</td>
+            <td>9.2</td>
+            <td>9.9</td>
+          </tr>
+          <tr>
+            <td>17</td>
+            <td>Qwen3-VL-4B-Instruct</td>
+            <td><span class="type-open-i">Open · Instruct</span></td>
+            <td>8.3</td>
+            <td>5.4</td>
+            <td>16.4</td>
+            <td>6.7</td>
+            <td>10.8</td>
+            <td>7.9</td>
+          </tr>
+          <tr>
+            <td>18</td>
+            <td>Qwen3-VL-4B-Thinking</td>
+            <td><span class="type-open-t">Open · Thinking</span></td>
+            <td>4.8</td>
+            <td>5.4</td>
+            <td>25.4</td>
+            <td>5.6</td>
+            <td>9.2</td>
+            <td>7.7</td>
+          </tr>
+          <tr>
+            <td>19</td>
+            <td>GPT-4o</td>
+            <td><span class="type-prop">Proprietary</span></td>
+            <td>4.1</td>
+            <td>3.9</td>
+            <td>23.9</td>
+            <td>0.0</td>
+            <td>6.7</td>
+            <td>5.7</td>
+          </tr>
+          <tr>
+            <td>20</td>
+            <td>Qwen3-VL-2B-Instruct</td>
+            <td><span class="type-open-i">Open · Instruct</span></td>
+            <td>4.1</td>
+            <td>3.3</td>
+            <td>22.4</td>
+            <td>2.2</td>
+            <td>8.3</td>
+            <td>5.8</td>
+          </tr>
+          <tr>
+            <td>21</td>
+            <td>Qwen3-VL-2B-Thinking</td>
+            <td><span class="type-open-t">Open · Thinking</span></td>
+            <td>4.1</td>
+            <td>2.4</td>
+            <td>14.9</td>
+            <td>1.1</td>
+            <td>5.0</td>
+            <td>4.1</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+    <p class="mt-3 is-size-7 has-text-grey">
+      To submit your model results, please contact us via email.
+    </p>
+  </div>
+</section>
+
+<!-- Footer -->
+<footer>
+  <p>WildTableBench · 2025</p>
+  <p class="mt-2"><a href="https://arxiv.org/abs/2605.01018">Paper</a> · <a href="https://huggingface.co/datasets/jzhuang/WildTableBench">Dataset</a> · <a href="https://github.com/hjzhe/WildTableBench">GitHub</a></p>
+</footer>
+
+<script>
+$(document).ready(function() {
+  $('#leaderboardTable').DataTable({
+    paging: false,
+    searching: false,
+    info: false,
+    order: [[8, 'desc']],
+    columnDefs: [
+      { targets: 0, orderable: false },
+      { targets: [3,4,5,6,7,8], className: 'dt-center' },
+    ],
+    drawCallback: function() {
+      // Re-rank rows after sort
+      this.api().rows().every(function(i) {
+        var rank = i + 1;
+        var rankCell = $(this.node()).find('td:first');
+        var medal = rank === 1 ? '🥇 1' : rank === 2 ? '🥈 2' : rank === 3 ? '🥉 3' : rank;
+        var cls = rank === 1 ? 'rank-gold' : rank === 2 ? 'rank-silver' : rank === 3 ? 'rank-bronze' : '';
+        rankCell.html(medal).attr('class', cls);
+      });
+    }
+  });
+});
+</script>
+
+</body>
+</html>
