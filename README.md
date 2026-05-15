@@ -4,7 +4,7 @@
 
 📄 Paper: [WildTableBench: Benchmarking Multimodal Foundation Models on Table Understanding In the Wild](https://arxiv.org/abs/2605.01018)  
 🤗 Dataset: [jzhuang/WildTableBench](https://huggingface.co/datasets/jzhuang/WildTableBench)
-
+🌐 Project Page: https://hjzhe.github.io/WildTableBench/
 ---
 
 ## Dataset
