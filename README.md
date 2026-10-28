@@ -24,6 +24,18 @@
 
 ---
 
+## Examples
+
+Click an image for the full-resolution original. More examples are on the [project page](https://hjzhe.github.io/WildTableBench/#examples); all 928 questions can be browsed in the [Hugging Face Dataset Viewer](https://huggingface.co/datasets/jzhuang/WildTableBench/viewer).
+
+<table>
+<tr><td width="50%" valign="top"><a href="https://huggingface.co/datasets/jzhuang/WildTableBench/resolve/main/images/198.jpg"><img src="examples/198.jpg" width="100%"></a><br><b>Q:</b> List all teams with the most green fixtures(green cells) in these 6 rounds.<br><b>A:</b> <code>Brighton, Liverpool, and Chelsea</code><br><sub>C1 Cell-Level · Transcription</sub></td><td width="50%" valign="top"><a href="https://huggingface.co/datasets/jzhuang/WildTableBench/resolve/main/images/337.jpg"><img src="examples/337.jpg" width="100%"></a><br><b>Q:</b> How many stars does movie Transformers have?<br><b>A:</b> <code>3</code><br><sub>C1 Cell-Level · Semantic Lookup & Struct.</sub></td></tr>
+<tr><td width="50%" valign="top"><a href="https://huggingface.co/datasets/jzhuang/WildTableBench/resolve/main/images/199.jpg"><img src="examples/199.jpg" width="100%"></a><br><b>Q:</b> How many away matches are there from GW 11 to GW 35 inclusive?<br><b>A:</b> <code>13</code><br><sub>C2 Numerical · Multi-step Conditional</sub></td><td width="50%" valign="top"><a href="https://huggingface.co/datasets/jzhuang/WildTableBench/resolve/main/images/366.jpg"><img src="examples/366.jpg" width="100%"></a><br><b>Q:</b> True or False: Five trains stop at the station “West Hinsdale”.<br><b>A:</b> <code>True</code><br><sub>C3 Verification · Value Verification</sub></td></tr>
+<tr><td width="50%" valign="top"><a href="https://huggingface.co/datasets/jzhuang/WildTableBench/resolve/main/images/192.jpg"><img src="examples/192.jpg" width="100%"></a><br><b>Q:</b> Under the assumption that any matchup where BOTH team numbers are 10 or higher is removed, how many matchups remain in Rd 11?<br><b>A:</b> <code>6</code><br><sub>C4 Hypothetical · Hypothetical Condition</sub></td><td width="50%" valign="top"><a href="https://huggingface.co/datasets/jzhuang/WildTableBench/resolve/main/images/202.jpg"><img src="examples/202.jpg" width="100%"></a><br><b>Q:</b> What is the color of the &#x27;SEAFOOD&#x27; text? Choose from Green, Blue, Orange, Yellow or Red.<br><b>A:</b> <code>Green</code><br><sub>C5 Color · Color Identification</sub></td></tr>
+</table>
+
+---
+
 ## Evaluation
 
 ### 1. Download the dataset
