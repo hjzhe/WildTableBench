@@ -53,6 +53,16 @@ import requests
 # Utilities
 # ---------------------------------------------------------------------------
 
+# Reasoning effort for evaluated models that support it (the paper uses "high").
+# Applied by the named shortcuts and to OpenRouter model IDs in evaluate.py; not to the judge.
+# None leaves each model at its provider default.
+REASONING_EFFORT: Optional[str] = "high"
+
+
+def _is_openai_reasoning_model(model_id: str) -> bool:
+    """OpenAI models that accept reasoning_effort (o-series and GPT-5.x, not chat variants)."""
+    return model_id.startswith(("o1", "o3", "o4", "gpt-5")) and "chat" not in model_id
+
 def _mime_from_base64(img_b64: str) -> str:
     """Detect image MIME type from base64 magic bytes. Defaults to image/jpeg."""
     try:
@@ -122,6 +132,7 @@ def run_openrouter_model(
     image_data: List[str] = None,
     system_prompt: str = None,
     max_tokens: int = 16384,
+    reasoning_effort: Optional[str] = None,
 ) -> dict:
     """Run any model via OpenRouter.
 
@@ -129,6 +140,8 @@ def run_openrouter_model(
         model_id:   OpenRouter model ID, e.g. "openai/gpt-4o"
         question:   Prompt text
         image_data: List of base64-encoded images
+        reasoning_effort: "high" / "medium" / "low"; OpenRouter maps it per model and
+                          ignores it for models without configurable reasoning
     Returns:
         dict {"content": str, "usage": dict | None}  or  "Error: ..." string
     """
@@ -146,6 +159,8 @@ def run_openrouter_model(
         "Content-Type": "application/json",
     }
     payload = {"model": model_id, "messages": messages, "max_tokens": max_tokens}
+    if reasoning_effort:
+        payload["reasoning"] = {"effort": reasoning_effort}
 
     last_error = None
     for attempt in range(5):
@@ -187,6 +202,7 @@ def run_openai_model(
     image_data: List[str] = None,
     max_tokens: Optional[int] = None,
     base_url: str = None,
+    reasoning_effort: Optional[str] = None,
 ) -> dict:
     """Call OpenAI API directly (or any OpenAI-compatible endpoint).
 
@@ -196,6 +212,7 @@ def run_openai_model(
                     (fixed caps break models with smaller limits, e.g. gpt-4o's 16,384)
         base_url: Override API base URL (for Azure OpenAI, proxies, etc.)
                   Can also be set via OPENAI_BASE_URL env var.
+        reasoning_effort: sent only to reasoning models (other models reject it)
     """
     try:
         from openai import OpenAI
@@ -219,6 +236,8 @@ def run_openai_model(
     if max_tokens is not None:
         # GPT-5.x and o-series reject max_tokens; max_completion_tokens works for all chat models
         request["max_completion_tokens"] = max_tokens
+    if reasoning_effort and _is_openai_reasoning_model(model_id):
+        request["reasoning_effort"] = reasoning_effort
 
     try:
         response = client.chat.completions.create(**request)
@@ -243,16 +262,20 @@ def run_gemini_model(
     question: str,
     image_data: List[str] = None,
     max_output_tokens: int = 16384,
+    reasoning_effort: Optional[str] = None,
 ) -> dict:
     """Call Google Gemini API directly.
 
     Args:
         model_id: e.g. "gemini-2.0-flash", "gemini-2.5-pro-preview-05-06"
+        reasoning_effort: sent as thinking_level to Gemini 3 models; Gemini 2.x keeps
+                          its default dynamic thinking (it has no thinking levels)
 
     Set GEMINI_VIA_OPENROUTER=1 to route through OpenRouter instead of Google API.
     """
     if os.getenv("GEMINI_VIA_OPENROUTER", "").lower() in ("1", "true", "yes"):
-        return run_openrouter_model(f"google/{model_id}", question, image_data)
+        return run_openrouter_model(f"google/{model_id}", question, image_data,
+                                    reasoning_effort=reasoning_effort)
 
     try:
         from google import genai
@@ -265,6 +288,12 @@ def run_gemini_model(
         return "Error: GEMINI_API_KEY not set"
 
     client = genai.Client(api_key=api_key)
+    config_kwargs = {"max_output_tokens": max_output_tokens}
+    if reasoning_effort and model_id.startswith("gemini-3"):
+        try:
+            config_kwargs["thinking_config"] = types.ThinkingConfig(thinking_level=reasoning_effort)
+        except Exception:
+            return "Error: this google-genai version lacks thinking_level; pip install -U google-genai"
     parts = [{"text": question}]
     if image_data:
         for img_b64 in image_data:
@@ -282,7 +311,7 @@ def run_gemini_model(
             response = client.models.generate_content(
                 model=model_id,
                 contents=[{"role": "user", "parts": parts}],
-                config=types.GenerateContentConfig(max_output_tokens=max_output_tokens),
+                config=types.GenerateContentConfig(**config_kwargs),
             )
             text = ""
             if response.candidates:
@@ -382,8 +411,8 @@ def run_gpt4o_mini(question: str, image_data: List[str] = None) -> dict:
 
 def run_gpt_o3(question: str, image_data: List[str] = None) -> dict:
     if os.getenv("OPENAI_API_KEY"):
-        return run_openai_model("o3", question, image_data)
-    return run_openrouter_model("openai/o3", question, image_data)
+        return run_openai_model("o3", question, image_data, reasoning_effort=REASONING_EFFORT)
+    return run_openrouter_model("openai/o3", question, image_data, reasoning_effort=REASONING_EFFORT)
 
 def run_gemini_2_flash(question: str, image_data: List[str] = None) -> dict:
     if os.getenv("GEMINI_API_KEY"):
@@ -392,19 +421,19 @@ def run_gemini_2_flash(question: str, image_data: List[str] = None) -> dict:
 
 def run_gemini_2_5_pro(question: str, image_data: List[str] = None) -> dict:
     if os.getenv("GEMINI_API_KEY"):
-        return run_gemini_model("gemini-2.5-pro-preview-05-06", question, image_data)
-    return run_openrouter_model("google/gemini-2.5-pro-preview", question, image_data)
+        return run_gemini_model("gemini-2.5-pro-preview-05-06", question, image_data, reasoning_effort=REASONING_EFFORT)
+    return run_openrouter_model("google/gemini-2.5-pro-preview", question, image_data, reasoning_effort=REASONING_EFFORT)
 
 def run_gemini_2_5_flash(question: str, image_data: List[str] = None) -> dict:
     if os.getenv("GEMINI_API_KEY"):
-        return run_gemini_model("gemini-2.5-flash-preview-04-17", question, image_data)
-    return run_openrouter_model("google/gemini-2.5-flash-preview", question, image_data)
+        return run_gemini_model("gemini-2.5-flash-preview-04-17", question, image_data, reasoning_effort=REASONING_EFFORT)
+    return run_openrouter_model("google/gemini-2.5-flash-preview", question, image_data, reasoning_effort=REASONING_EFFORT)
 
 def run_claude_sonnet(question: str, image_data: List[str] = None) -> dict:
-    return run_openrouter_model("anthropic/claude-sonnet-4-5", question, image_data)
+    return run_openrouter_model("anthropic/claude-sonnet-4-5", question, image_data, reasoning_effort=REASONING_EFFORT)
 
 def run_claude_opus(question: str, image_data: List[str] = None) -> dict:
-    return run_openrouter_model("anthropic/claude-opus-4-5", question, image_data)
+    return run_openrouter_model("anthropic/claude-opus-4-5", question, image_data, reasoning_effort=REASONING_EFFORT)
 
 
 # ---------------------------------------------------------------------------

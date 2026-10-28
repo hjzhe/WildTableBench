@@ -141,6 +141,7 @@ python evaluate.py --help
 --limit N             Evaluate only the first N questions
 --only-class ID       Evaluate one category only (e.g. C2)
 --judge-model MODEL   LLM used to judge answers (default: openai/gpt-5.2)
+--reasoning-effort E  high (default, as in the paper) | medium | low | default
 --concurrent-models N Run N model calls in parallel per question
 --merge FILE [...]    Merge multiple result JSONs (use with -o)
 ```

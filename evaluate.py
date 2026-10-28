@@ -39,6 +39,7 @@ import time
 from dotenv import load_dotenv
 load_dotenv()
 
+import model_eva_api
 from model_eva_api import (
     SUPPORTED_MODELS,
     run_openai_model,
@@ -302,7 +303,8 @@ def run_model(
         if fn is not None:
             full_response = fn(prompt, image_data)
         elif "/" in model_name:
-            full_response = run_openrouter_model(model_name, prompt, image_data)
+            full_response = run_openrouter_model(model_name, prompt, image_data,
+                                                 reasoning_effort=model_eva_api.REASONING_EFFORT)
         else:
             return f"ERROR: unknown model '{model_name}'", f"ERROR: unknown model '{model_name}'", None
 
@@ -636,6 +638,10 @@ Full OpenRouter model list: https://openrouter.ai/models
                         help="Number of (model, style) API calls to run in parallel per question")
     parser.add_argument("--judge-model", type=str, default=None, metavar="MODEL",
                         help=f"Judge model name or OpenRouter ID (default: {JUDGE_MODEL})")
+    parser.add_argument("--reasoning-effort", type=str, default="high",
+                        choices=["high", "medium", "low", "default"],
+                        help="Reasoning effort for models that support it (default: high, as in the paper); "
+                             "'default' uses each provider's default")
     parser.add_argument("--merge", nargs="+", metavar="FILE",
                         help="Merge multiple result JSONs (requires -o)")
 
@@ -643,6 +649,7 @@ Full OpenRouter model list: https://openrouter.ai/models
 
     if args.judge_model:
         JUDGE_MODEL = args.judge_model
+    model_eva_api.REASONING_EFFORT = None if args.reasoning_effort == "default" else args.reasoning_effort
 
     out_path = args.output or DEFAULT_OUTPUT_FILE
 
@@ -676,6 +683,7 @@ Full OpenRouter model list: https://openrouter.ai/models
         print(f"  {cid:6s} {cnt:4d}  {cname}")
 
     print(f"\nModels:       {args.models}")
+    print(f"Reasoning:    {args.reasoning_effort}")
     print(f"Judge model:  {JUDGE_MODEL}")
     print(f"Output:       {out_path}")
 
