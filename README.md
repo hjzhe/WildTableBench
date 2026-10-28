@@ -45,7 +45,7 @@ pip install -r requirements.txt
 
 ### 3. Set API keys
 
-Answers are judged by GPT-5.2 (as in the paper). The judge runs through OpenRouter if `OPENROUTER_API_KEY` is set, otherwise through the OpenAI API with `OPENAI_API_KEY`; the script exits early if neither is available.
+Answers are judged by GPT-5.2 with the prompts from the paper's appendix: Transcription (C1-T) questions use the stricter transcription prompt, all other questions use the general prompt. The judge runs through OpenRouter if `OPENROUTER_API_KEY` is set, otherwise through the OpenAI API with `OPENAI_API_KEY`; the script exits early if neither is available.
 
 ```bash
 # OpenAI

@@ -57,6 +57,9 @@ DEFAULT_OUTPUT_FILE = "evaluation_results.json"
 # "openai/..." judges use OpenRouter if OPENROUTER_API_KEY is set, else the OpenAI API directly.
 JUDGE_MODEL = "openai/gpt-5.2"
 
+# Transcription questions use the stricter judge prompt (paper, Appendix "Evaluation Prompts").
+TRANSCRIPTION_SUBTYPE = "C1-T"
+
 # ---------------------------------------------------------------------------
 # Prompts
 # ---------------------------------------------------------------------------
@@ -105,13 +108,11 @@ STRICT Evaluation Rules:
    - "Yes" = "True" = "Correct" (CORRECT)
    - "No" = "False" = "Incorrect" (CORRECT)
 
-4. **Lists**: All items must be present.
-
 Is the model's answer CORRECT or INCORRECT?
 
 Return ONLY one word: "CORRECT" or "INCORRECT"."""
 
-JUDGE_PROMPT_CELL_LEVEL = """You are a STRICT judge evaluating if a model's transcription matches the ground truth.
+JUDGE_PROMPT_TRANSCRIPTION = """You are a STRICT judge evaluating if a model's transcription matches the ground truth.
 
 Question: {question}
 Ground Truth Answer: {ground_truth}
@@ -128,7 +129,7 @@ Ground Truth Answer: {ground_truth}
 - If the final answer appears **partial** (fewer values than expected, seems truncated, but the values present are all correct) → use **Model's Full Response** to find the complete answer and judge based on that.
 - If the final answer is missing or ambiguous → use **Model's Full Response** to decide.
 
-STRICT Rules for Cell-Level Questions:
+STRICT Rules for Transcription:
 1. **All values must be present** — missing even one value = INCORRECT.
 2. **Order must match** — if the question specifies top-to-bottom or left-to-right, the order must be correct.
 3. **No extra values** — values not in the ground truth = INCORRECT.
@@ -137,7 +138,7 @@ STRICT Rules for Cell-Level Questions:
 6. **Case is flexible** — "apple" = "Apple" (CORRECT).
 7. **Minor punctuation differences are OK** — trailing period, extra spaces (CORRECT).
 
-Is the model's answer CORRECT or INCORRECT?
+Is the model's transcription CORRECT or INCORRECT?
 
 Return ONLY one word: "CORRECT" or "INCORRECT"."""
 
@@ -228,7 +229,7 @@ def judge_answer(
     ground_truth: str,
     full_response: str,
     final_answer: str = None,
-    class_id: str = None,
+    subtype_id: str = None,
 ) -> Tuple[bool, str]:
     r = (full_response or "").strip()
     if not r or r.startswith("Error") or r.startswith("ERROR"):
@@ -237,7 +238,7 @@ def judge_answer(
     model_final = (final_answer or "").strip() or "(none)"
     model_full = (full_response or "").strip()
 
-    template = JUDGE_PROMPT_CELL_LEVEL if (class_id or "").startswith("C1") else JUDGE_PROMPT
+    template = JUDGE_PROMPT_TRANSCRIPTION if subtype_id == TRANSCRIPTION_SUBTYPE else JUDGE_PROMPT
     prompt = template.format(
         question=question,
         ground_truth=ground_truth,
@@ -257,17 +258,17 @@ def judge_answer(
         return False, "judge_error"
 
 
-def extract_final_answer(response: str, class_id: str = None) -> str:
+def extract_final_answer(response: str, subtype_id: str = None) -> str:
     """Extract the final answer from a model response.
 
     Takes the LAST "Final answer:" occurrence to avoid prompt template placeholders
-    or hits inside <think> blocks. For C1 questions, captures everything after
-    "Answer:" to preserve multi-line cell answers.
+    or hits inside <think> blocks. For Transcription (C1-T) questions, captures
+    everything after that marker to preserve multi-line cell lists.
     """
-    if (class_id or "").startswith("C1"):
-        m = re.search(r"[Aa]nswer:\s*(.+)", response, re.DOTALL)
-        if m:
-            return re.sub(r"<\|[^>]*\|>", "", m.group(1)).strip()
+    if subtype_id == TRANSCRIPTION_SUBTYPE:
+        markers = list(re.finditer(r"[Ff]inal\s+[Aa]nswer:", response)) or list(re.finditer(r"[Aa]nswer:", response))
+        if markers:
+            return re.sub(r"<\|[^>]*\|>", "", response[markers[-1].end():]).strip()
         return ""
 
     matches = list(re.finditer(r"[Ff]inal\s+[Aa]nswer:\s*(.+?)(?=\n\s*\n|\Z)", response, re.DOTALL))
@@ -300,7 +301,7 @@ def run_model(
     question: str,
     image_data: List[str],
     prompt_style: str = "cot",
-    class_id: str = None,
+    subtype_id: str = None,
 ) -> Tuple[str, str, dict]:
     """Run a model on one question. Returns (full_response, final_answer, usage).
 
@@ -323,7 +324,7 @@ def run_model(
             usage = full_response.get("usage")
             full_response = full_response.get("content", "")
 
-        final_answer = extract_final_answer(full_response, class_id=class_id)
+        final_answer = extract_final_answer(full_response, subtype_id=subtype_id)
         return full_response, final_answer, usage
 
     except Exception as e:
@@ -407,8 +408,8 @@ def run_evaluation(
             image_data = [load_image_base64(ann["image_paths"][0])] if ann.get("image_paths") else []
             for model, ps in ann["missing_pairs"]:
                 print(f"\n  {model} [{ps}] for {key}...")
-                full, final, usage = run_model(model, ann["question"], image_data, ps, ann.get("class_id"))
-                correct, method = judge_answer(ann["question"], ann["answer"], full, final, ann.get("class_id"))
+                full, final, usage = run_model(model, ann["question"], image_data, ps, ann.get("subtype_id"))
+                correct, method = judge_answer(ann["question"], ann["answer"], full, final, ann.get("subtype_id"))
                 if results["evaluations"][idx]["model_results"].get(model) is None:
                     results["evaluations"][idx]["model_results"][model] = {}
                 entry = {"full_response": full, "final_answer": final, "correct": correct, "judge_method": method}
@@ -446,8 +447,8 @@ def run_evaluation(
                     eval_result["model_results"][model] = {}
                     for ps in prompt_styles:
                         print(f"\n  {model} [{ps}]...")
-                        full, final, usage = run_model(model, ann["question"], image_data, ps, ann.get("class_id"))
-                        correct, method = judge_answer(ann["question"], ann["answer"], full, final, ann.get("class_id"))
+                        full, final, usage = run_model(model, ann["question"], image_data, ps, ann.get("subtype_id"))
+                        correct, method = judge_answer(ann["question"], ann["answer"], full, final, ann.get("subtype_id"))
                         entry = {"full_response": full, "final_answer": final, "correct": correct, "judge_method": method}
                         if usage:
                             entry.update({k: usage[k] for k in ("prompt_tokens", "completion_tokens", "thought_token_count") if k in usage})
@@ -458,8 +459,8 @@ def run_evaluation(
                     eval_result["model_results"][model] = {}
 
                 def _run_one(m, ps):
-                    full, final, usage = run_model(m, ann["question"], image_data, ps, ann.get("class_id"))
-                    correct, method = judge_answer(ann["question"], ann["answer"], full, final, ann.get("class_id"))
+                    full, final, usage = run_model(m, ann["question"], image_data, ps, ann.get("subtype_id"))
+                    correct, method = judge_answer(ann["question"], ann["answer"], full, final, ann.get("subtype_id"))
                     data = {"full_response": full, "final_answer": final, "correct": correct, "judge_method": method}
                     if usage:
                         data.update({k: usage[k] for k in ("prompt_tokens", "completion_tokens", "thought_token_count") if k in usage})
