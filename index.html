@@ -113,11 +113,11 @@
         <a class="button is-rounded is-dark" href="https://huggingface.co/datasets/jzhuang/WildTableBench" target="_blank">
           <span class="icon"><i class="fas fa-database"></i></span><span>Dataset (HF)</span>
         </a>
-        <a class="button is-rounded is-dark" href="#examples">
-          <span class="icon"><i class="fas fa-images"></i></span><span>Examples</span>
-        </a>
         <a class="button is-rounded is-info" href="#leaderboard">
           <span class="icon"><i class="fas fa-trophy"></i></span><span>Leaderboard</span>
+        </a>
+        <a class="button is-rounded is-dark" href="#examples">
+          <span class="icon"><i class="fas fa-images"></i></span><span>Examples</span>
         </a>
       </div>
     </div>
@@ -232,24 +232,6 @@
         </div>
       </div>
     </div>
-  </div>
-</section>
-
-<!-- Examples -->
-<section class="section pt-0" id="examples">
-  <div class="container is-max-widescreen">
-    <h2 class="title is-3 section-title">Examples</h2>
-    <p class="mb-4 has-text-grey">Representative tables from each domain and one question for every subtype. Click an image for the full-resolution original. All 928 questions are browsable in the <a href="https://huggingface.co/datasets/jzhuang/WildTableBench/viewer" target="_blank">Hugging Face Dataset Viewer</a>.</p>
-    <div class="ex-filters mb-4" id="exFilters">
-      <button class="button is-small is-rounded is-active" data-f="all">All</button>
-      <button class="button is-small is-rounded" data-f="domain">By domain</button>
-      <button class="button is-small is-rounded" data-f="C1">C1 · Cell-Level</button>
-      <button class="button is-small is-rounded" data-f="C2">C2 · Numerical</button>
-      <button class="button is-small is-rounded" data-f="C3">C3 · Verification</button>
-      <button class="button is-small is-rounded" data-f="C4">C4 · Hypothetical</button>
-      <button class="button is-small is-rounded" data-f="C5">C5 · Color</button>
-    </div>
-    <div class="columns is-multiline" id="exGrid"></div>
   </div>
 </section>
 
@@ -518,6 +500,24 @@
     <p class="mt-3 is-size-7 has-text-grey">
       To submit your model results, please contact us via email.
     </p>
+  </div>
+</section>
+
+<!-- Examples -->
+<section class="section pt-0" id="examples">
+  <div class="container is-max-widescreen">
+    <h2 class="title is-3 section-title">Examples</h2>
+    <p class="mb-4 has-text-grey">Representative tables from each domain and one question for every subtype. Click an image for the full-resolution original. All 928 questions are browsable in the <a href="https://huggingface.co/datasets/jzhuang/WildTableBench/viewer" target="_blank">Hugging Face Dataset Viewer</a>.</p>
+    <div class="ex-filters mb-4" id="exFilters">
+      <button class="button is-small is-rounded is-active" data-f="all">All</button>
+      <button class="button is-small is-rounded" data-f="domain">By domain</button>
+      <button class="button is-small is-rounded" data-f="C1">C1 · Cell-Level</button>
+      <button class="button is-small is-rounded" data-f="C2">C2 · Numerical</button>
+      <button class="button is-small is-rounded" data-f="C3">C3 · Verification</button>
+      <button class="button is-small is-rounded" data-f="C4">C4 · Hypothetical</button>
+      <button class="button is-small is-rounded" data-f="C5">C5 · Color</button>
+    </div>
+    <div class="columns is-multiline" id="exGrid"></div>
   </div>
 </section>
 
