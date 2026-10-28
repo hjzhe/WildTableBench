@@ -62,6 +62,17 @@
     .heat-5  { background: #D9E8DC; }
     .heat-6  { background: #9FC4AE; }
 
+
+    /* Examples gallery */
+    .ex-filters .button { margin: 0 6px 6px 0; }
+    .ex-filters .button.is-active { background: #1e3a5f; color: white; border-color: #1e3a5f; }
+    .ex-card { border: 1px solid #e5e7eb; border-radius: 8px; overflow: hidden; height: 100%; display: flex; flex-direction: column; background: white; }
+    .ex-card .ex-img { display: block; height: 220px; background: #f8fafc; border-bottom: 1px solid #e5e7eb; }
+    .ex-card .ex-img img { width: 100%; height: 100%; object-fit: contain; }
+    .ex-card .ex-body { padding: 0.9rem 1rem; font-size: 0.88rem; flex: 1; }
+    .ex-card .ex-q { margin: 0.5rem 0; white-space: pre-line; }
+    .ex-ans { background: #86efac; padding: 1px 8px; border-radius: 4px; font-weight: 700; white-space: pre-line; word-break: break-word; }
+
     .section-title { border-left: 4px solid #1e40af; padding-left: 1rem; margin-bottom: 1.5rem; }
     footer { background: #1e3a5f; color: white; padding: 2rem; text-align: center; }
     footer a { color: #93c5fd; }
@@ -101,6 +112,9 @@
         </a>
         <a class="button is-rounded is-dark" href="https://huggingface.co/datasets/jzhuang/WildTableBench" target="_blank">
           <span class="icon"><i class="fas fa-database"></i></span><span>Dataset (HF)</span>
+        </a>
+        <a class="button is-rounded is-dark" href="#examples">
+          <span class="icon"><i class="fas fa-images"></i></span><span>Examples</span>
         </a>
         <a class="button is-rounded is-info" href="#leaderboard">
           <span class="icon"><i class="fas fa-trophy"></i></span><span>Leaderboard</span>
@@ -218,6 +232,24 @@
         </div>
       </div>
     </div>
+  </div>
+</section>
+
+<!-- Examples -->
+<section class="section pt-0" id="examples">
+  <div class="container is-max-widescreen">
+    <h2 class="title is-3 section-title">Examples</h2>
+    <p class="mb-4 has-text-grey">Representative tables from each domain and one question for every subtype. Click an image for the full-resolution original. All 928 questions are browsable in the <a href="https://huggingface.co/datasets/jzhuang/WildTableBench/viewer" target="_blank">Hugging Face Dataset Viewer</a>.</p>
+    <div class="ex-filters mb-4" id="exFilters">
+      <button class="button is-small is-rounded is-active" data-f="all">All</button>
+      <button class="button is-small is-rounded" data-f="domain">By domain</button>
+      <button class="button is-small is-rounded" data-f="C1">C1 · Cell-Level</button>
+      <button class="button is-small is-rounded" data-f="C2">C2 · Numerical</button>
+      <button class="button is-small is-rounded" data-f="C3">C3 · Verification</button>
+      <button class="button is-small is-rounded" data-f="C4">C4 · Hypothetical</button>
+      <button class="button is-small is-rounded" data-f="C5">C5 · Color</button>
+    </div>
+    <div class="columns is-multiline" id="exGrid"></div>
   </div>
 </section>
 
@@ -494,6 +526,36 @@
   <p>WildTableBench · 2025</p>
   <p class="mt-2"><a href="https://arxiv.org/abs/2605.01018">Paper</a> · <a href="https://huggingface.co/datasets/jzhuang/WildTableBench">Dataset</a> · <a href="https://github.com/hjzhe/WildTableBench">GitHub</a></p>
 </footer>
+
+<script>
+const EXAMPLES = [{"id": 312, "uuid": "wtb_334_q2", "q": "How many packages have the Status filled with yellow and the Method as USPS?", "a": "6", "cat": "C5", "catName": "Color", "sub": "C5-R", "subName": "Color-based Reasoning", "domain": "Business & Management"}, {"id": 112, "uuid": "wtb_126_q1", "q": "If all rows where 'New Customers' are less than 1,000 are excluded, what is the new total 'Order Revenue' for the remaining rows?", "a": "$3,603,035.82", "cat": "C4", "catName": "Hypothetical", "sub": "C4-R", "subName": "Row Operation", "domain": "Business & Management"}, {"id": 286, "uuid": "wtb_308_q5", "q": "How many numeric cells have an orange background color?", "a": "177", "cat": "C5", "catName": "Color", "sub": "C5-C", "subName": "Color-based Counting", "domain": "Business & Management"}, {"id": 304, "uuid": "wtb_326_q3", "q": "True or False: Seven rows in the table are crossed out.", "a": "True", "cat": "C3", "catName": "Verification", "sub": "C3-V", "subName": "Value Verification", "domain": "Business & Management"}, {"id": 247, "uuid": "wtb_269_q1", "q": "True or False: There are 19 values in the table displayed in red text.", "a": "True", "cat": "C3", "catName": "Verification", "sub": "C3-C", "subName": "Conditional Verification", "domain": "Finance & Accounting"}, {"id": 322, "uuid": "wtb_344_q1", "q": "Considering only the months where 'Adjustments to Earnings' equals $15,000, what is the average 'Total Revenue' for those months? Round to the nearest dollar.", "a": "$494,800", "cat": "C2", "catName": "Numerical", "sub": "C2-C", "subName": "Conditional Numerical", "domain": "Finance & Accounting"}, {"id": 32, "uuid": "wtb_035_q2", "q": "Which STRIKE PRICE cell in the visible range is filled bright red?", "a": "21300", "cat": "C5", "catName": "Color", "sub": "C5-I", "subName": "Color Identification", "domain": "Finance & Accounting"}, {"id": 11, "uuid": "wtb_012_q2", "q": "List, in the order they appear in the table, all the entries from the “Description Profit & Loss Statement” column that correspond to cells with green-colored text in the “vs Budget#” column, exactly as shown.", "a": "1.  01 - Distributor\n2.  02 - Export\n3.  03 - WholeSale\n4.  04 - Discount\n5.  05 - Return\n6.  07 - Cost of Sales\n7.  08 - Travel and Expenses\n8.  09 - General Expenses\n9.  13 - Marketing", "cat": "C1", "catName": "Cell-Level", "sub": "C1-T", "subName": "Transcription", "domain": "Finance & Accounting"}, {"id": 203, "uuid": "wtb_219_q1", "q": "Among all items in the table with 0 NET CARBS, which FOOD has the highest FAT?\nPlease answer using the exact value as it appears in the FOOD column.", "a": "Pork, spare ribs (cooked)", "cat": "C2", "catName": "Numerical", "sub": "C2-R", "subName": "Ranking", "domain": "Sports & Health"}, {"id": 200, "uuid": "wtb_215_q1", "q": "How many tests have a Current Rating value that is outside the Healthy range but still within the Clinical range, considering both ranges inclusive?", "a": "12", "cat": "C2", "catName": "Numerical", "sub": "C2-C", "subName": "Conditional Numerical", "domain": "Sports & Health"}, {"id": 255, "uuid": "wtb_277_q3", "q": "Which days in Week 1 was “fruits, veggies” not completed?", "a": "Sunday", "cat": "C1", "catName": "Cell-Level", "sub": "C1-T", "subName": "Transcription", "domain": "Education & Science"}, {"id": 176, "uuid": "wtb_191_q2", "q": "Find all cells in the table that have the same highlighted color as the cell at the intersection of OH⁻ and Ca²⁺. How many such cells are there?", "a": "18", "cat": "C5", "catName": "Color", "sub": "C5-C", "subName": "Color-based Counting", "domain": "Education & Science"}, {"id": 172, "uuid": "wtb_187_q1", "q": "What color is used for the text  \"Time\")?", "a": "Green", "cat": "C5", "catName": "Color", "sub": "C5-I", "subName": "Color Identification", "domain": "Education & Science"}, {"id": 184, "uuid": "wtb_199_q1", "q": "Based on the provided flight schedule, how many flights are there from BUA to RAB in the chart?", "a": "5", "cat": "C2", "catName": "Numerical", "sub": "C2-C", "subName": "Conditional Numerical", "domain": "Transportation"}, {"id": 230, "uuid": "wtb_251_q1", "q": "Count how many 'Northeast Regional' columns appear in the upper table and how many appear in the lower table, then compute (upper count − lower count).", "a": "4", "cat": "C2", "catName": "Numerical", "sub": "C2-B", "subName": "Basic Numerical", "domain": "Transportation"}, {"id": 254, "uuid": "wtb_276_q4", "q": "How many slots are for Kids in the chart? Each cell represents one slot.", "a": "32", "cat": "C2", "catName": "", "sub": "C2-C", "subName": "Conditional Numerical", "domain": "Society & Media"}, {"id": 283, "uuid": "wtb_305_q2", "q": "What is the total number of minutes that programs with titles containing ‘HCTV’ are scheduled to air in a week?", "a": "1650", "cat": "C2", "catName": "Numerical", "sub": "C2-C", "subName": "Conditional Numerical", "domain": "Society & Media"}, {"id": 268, "uuid": "wtb_290_q1", "q": "Considering only individual airings, which program in the chart has the longest single broadcast duration?", "a": "Big Brother After Dark Season 7", "cat": "C2", "catName": "Numerical", "sub": "C2-R", "subName": "Ranking", "domain": "Society & Media"}, {"id": 198, "uuid": "wtb_213_q1", "q": "List all teams with the most green fixtures(green cells) in these 6 rounds.", "a": "Brighton, Liverpool, and Chelsea", "cat": "C1", "catName": "Cell-Level", "sub": "C1-T", "subName": "Transcription", "domain": null}, {"id": 113, "uuid": "wtb_128_q1", "q": "What is the value in cell F8?", "a": "45", "cat": "C1", "catName": "Cell-Level", "sub": "C1-L", "subName": "Cell Locating", "domain": null}, {"id": 337, "uuid": "wtb_359_q7", "q": "How many stars does movie Transformers have?", "a": "3", "cat": "C1", "catName": "Cell-Level", "sub": "C1-S", "subName": "Semantic Lookup & Struct.", "domain": null}, {"id": 307, "uuid": "wtb_329_q1", "q": "Write an Excel formula to calculate the Total Expenses total.", "a": "=SUM(E11:E22)", "cat": "C1", "catName": "Cell-Level", "sub": "C1-F", "subName": "Excel Formula", "domain": null}, {"id": 5, "uuid": "wtb_005_q4", "q": "How many trains are there in total?", "a": "94", "cat": "C2", "catName": "Numerical", "sub": "C2-B", "subName": "Basic Numerical", "domain": null}, {"id": 101, "uuid": "wtb_114_q1", "q": "What was the total sales in January 2020?", "a": "152337", "cat": "C2", "catName": "Numerical", "sub": "C2-C", "subName": "Conditional Numerical", "domain": null}, {"id": 199, "uuid": "wtb_214_q1", "q": "How many away matches are there from GW 11 to GW 35 inclusive?", "a": "13", "cat": "C2", "catName": "Numerical", "sub": "C2-M", "subName": "Multi-step Conditional", "domain": null}, {"id": 74, "uuid": "wtb_083_q3", "q": "Who has the eighth-highest salary?", "a": "Alexander, Amy H.", "cat": "C2", "catName": "Numerical", "sub": "C2-R", "subName": "Ranking", "domain": null}, {"id": 366, "uuid": "wtb_390_q3", "q": "True or False: Five trains stop at the station “West Hinsdale”.", "a": "True", "cat": "C3", "catName": "Verification", "sub": "C3-V", "subName": "Value Verification", "domain": null}, {"id": 381, "uuid": "wtb_405_q2", "q": "True or False: The total Invoice Amount for all Purchase rows dated 21-07-2016 is 26,527.", "a": "True", "cat": "C3", "catName": "Verification", "sub": "C3-A", "subName": "Aggregate Verification", "domain": null}, {"id": 340, "uuid": "wtb_362_q1", "q": "True or False: No trains originate from Prayagraj.", "a": "True", "cat": "C3", "catName": "Verification", "sub": "C3-C", "subName": "Conditional Verification", "domain": null}, {"id": 192, "uuid": "wtb_207_q1", "q": "Under the assumption that any matchup where BOTH team numbers are 10 or higher is removed, how many matchups remain in Rd 11?", "a": "6", "cat": "C4", "catName": "Hypothetical", "sub": "C4-H", "subName": "Hypothetical Condition", "domain": null}, {"id": 144, "uuid": "wtb_159_q9", "q": "Assuming Birjesh Kumar’s PF deduction increases by 10% while all other deductions remain the same, what would be his new Paid Salary?", "a": "16148", "cat": "C4", "catName": "Hypothetical", "sub": "C4-M", "subName": "Value Modification", "domain": null}, {"id": 389, "uuid": "wtb_413_q1", "q": "After removing the Income row \"Sponsored Posts\" entirely, what would the new Grand Total for \"Income Total\" become?", "a": "$361,782.00", "cat": "C4", "catName": "Hypothetical", "sub": "C4-R", "subName": "Row Operation", "domain": null}, {"id": 202, "uuid": "wtb_218_q1", "q": "What is the color of the 'SEAFOOD' text? Choose from Green, Blue, Orange, Yellow or Red.", "a": "Green", "cat": "C5", "catName": "Color", "sub": "C5-I", "subName": "Color Identification", "domain": null}, {"id": 130, "uuid": "wtb_145_q2", "q": "How many cells in the image are filled in red?", "a": "26", "cat": "C5", "catName": "Color", "sub": "C5-C", "subName": "Color-based Counting", "domain": null}, {"id": 278, "uuid": "wtb_300_q1", "q": "How many \"P\"s are highlighted in green?", "a": "64", "cat": "C5", "catName": "Color", "sub": "C5-R", "subName": "Color-based Reasoning", "domain": null}];
+(function() {
+  const HF = 'https://huggingface.co/datasets/jzhuang/WildTableBench/resolve/main/images/';
+  const esc = s => s.replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+  const grid = document.getElementById('exGrid');
+  grid.innerHTML = EXAMPLES.map(e => `
+    <div class="column is-one-third-desktop is-half-tablet ex-item" data-cat="${e.cat}" data-domain="${e.domain ? 1 : 0}">
+      <div class="ex-card">
+        <a class="ex-img" href="${HF}${e.id}.jpg" target="_blank"><img loading="lazy" src="examples/${e.id}.jpg" alt="Table image ${e.id}"></a>
+        <div class="ex-body">
+          <div class="tags mb-0">
+            ${e.domain ? `<span class="tag is-light">${esc(e.domain)}</span>` : ''}
+            <span class="tag tag-${e.cat.toLowerCase()}">${e.sub} · ${esc(e.subName)}</span>
+          </div>
+          <p class="ex-q"><strong>Q:</strong> ${esc(e.q)}</p>
+          <p><strong>A:</strong> <span class="ex-ans">${esc(e.a)}</span></p>
+        </div>
+      </div>
+    </div>`).join('');
+  document.querySelectorAll('#exFilters .button').forEach(b => b.addEventListener('click', () => {
+    document.querySelectorAll('#exFilters .button').forEach(x => x.classList.toggle('is-active', x === b));
+    const f = b.dataset.f;
+    document.querySelectorAll('.ex-item').forEach(el => {
+      el.style.display = (f === 'all' || (f === 'domain' ? el.dataset.domain === '1' : el.dataset.cat === f)) ? '' : 'none';
+    });
+  }));
+})();
+</script>
 
 <script>
 $(document).ready(function() {
