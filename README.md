@@ -82,7 +82,7 @@ python evaluate.py --models meta-llama/llama-3.2-90b-vision-instruct
 python evaluate.py --models local
 ```
 
-Results are saved to `evaluation_results.json` and a summary is printed at the end.
+Results are saved to `evaluation_results.json` and a summary is printed at the end. Answers that failed with an API or judge error are reported in the summary; rerunning the same command retries only those.
 
 ---
 
@@ -137,7 +137,6 @@ python evaluate.py --help
 --data FILE           Path to metadata.csv (default: hf_wild/metadata.csv)
 --images-dir DIR      Base directory for images
 --models MODEL [...]  Model names or OpenRouter IDs
---prompt-styles       cot (default) or direct
 --output FILE         Output JSON path (default: evaluation_results.json)
 --limit N             Evaluate only the first N questions
 --only-class ID       Evaluate one category only (e.g. C2)

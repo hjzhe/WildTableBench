@@ -64,23 +64,14 @@ TRANSCRIPTION_SUBTYPE = "C1-T"
 # Prompts
 # ---------------------------------------------------------------------------
 
-PROMPT_COT = """You are given a question that refers to an image. Solve this question step-by-step.
+# Answer-generation prompt (paper, Appendix "Evaluation Prompts", Box 1)
+PROMPT = """You are given a question that refers to an image. Solve this question step-by-step.
 
 Provide your final answer in the following format: Final answer: [your concise answer]
 
 ### Question
 {question}
 """
-
-PROMPT_DIRECT = """Answer the following question about the image. Start your response with "Final answer: [your answer]" directly.
-
-### Question
-{question}"""
-
-PROMPT_STYLES = {
-    "cot": PROMPT_COT,
-    "direct": PROMPT_DIRECT,
-}
 
 JUDGE_PROMPT = """You are a STRICT judge evaluating if a model's answer matches the ground truth.
 
@@ -258,6 +249,12 @@ def judge_answer(
         return False, "judge_error"
 
 
+def _clean_answer(answer: str) -> str:
+    """Remove special tokens and markdown emphasis; keep the answer text itself."""
+    answer = re.sub(r"<\|[^>]*\|>", "", answer)
+    return answer.replace("**", "").strip()
+
+
 def extract_final_answer(response: str, subtype_id: str = None) -> str:
     """Extract the final answer from a model response.
 
@@ -266,30 +263,22 @@ def extract_final_answer(response: str, subtype_id: str = None) -> str:
     everything after that marker to preserve multi-line cell lists.
     """
     if subtype_id == TRANSCRIPTION_SUBTYPE:
-        markers = list(re.finditer(r"[Ff]inal\s+[Aa]nswer:", response)) or list(re.finditer(r"[Aa]nswer:", response))
+        markers = (list(re.finditer(r"final\s+answer\s*:", response, re.IGNORECASE))
+                   or list(re.finditer(r"answer\s*:", response, re.IGNORECASE)))
         if markers:
-            return re.sub(r"<\|[^>]*\|>", "", response[markers[-1].end():]).strip()
+            return _clean_answer(response[markers[-1].end():])
         return ""
 
-    matches = list(re.finditer(r"[Ff]inal\s+[Aa]nswer:\s*(.+?)(?=\n\s*\n|\Z)", response, re.DOTALL))
-    if not matches:
-        matches = list(re.finditer(r"[Ff]inal\s+[Aa]nswer:\s*(.+)", response, re.IGNORECASE))
-
-    if matches:
-        answer = matches[-1].group(1).strip()
-        if answer.lower().startswith("<insert"):
-            answer = matches[-2].group(1).strip() if len(matches) >= 2 else ""
-        if answer:
-            answer = re.sub(r"<\|[^>]*\|>", "", answer).strip()
-            if re.search(r"Row\s*\d+", answer, re.I) or "**" in answer:
-                nums = re.findall(r"[\d,]+\.?\d*|\.\d+", answer)
-                if nums:
-                    answer = nums[-1].replace(",", "")
-            return answer.rstrip(".")
+    matches = list(re.finditer(r"final\s+answer\s*:\s*(.+?)(?=\n\s*\n|\Z)", response, re.DOTALL | re.IGNORECASE))
+    answers = [m.group(1).strip() for m in matches]
+    # Skip echoes of the prompt's placeholder
+    answers = [a for a in answers if not a.lower().startswith(("<insert", "[your concise answer]"))]
+    if answers:
+        return _clean_answer(answers[-1]).rstrip(".")
 
     lines = [l.strip() for l in response.strip().split("\n") if l.strip()]
     answer = lines[-1] if lines else response.strip()
-    return re.sub(r"<\|[^>]*\|>", "", answer).strip()
+    return _clean_answer(answer)
 
 
 # ---------------------------------------------------------------------------
@@ -300,15 +289,13 @@ def run_model(
     model_name: str,
     question: str,
     image_data: List[str],
-    prompt_style: str = "cot",
     subtype_id: str = None,
 ) -> Tuple[str, str, dict]:
     """Run a model on one question. Returns (full_response, final_answer, usage).
 
     model_name: key in SUPPORTED_MODELS, or any OpenRouter model ID (contains "/").
     """
-    template = PROMPT_STYLES.get(prompt_style, PROMPT_COT)
-    prompt = template.format(question=question)
+    prompt = PROMPT.format(question=question)
 
     try:
         fn = SUPPORTED_MODELS.get(model_name)
@@ -336,17 +323,38 @@ def run_model(
 # Evaluation loop
 # ---------------------------------------------------------------------------
 
+# Results with these judge methods are treated as not yet evaluated and rerun on resume.
+RETRY_METHODS = ("error", "judge_error")
+
+
 def _normalize_model_results(mr: Dict) -> Dict:
-    """Migrate legacy flat model_results[model] = {correct, ...} to nested format."""
+    """Return model_results as {model: entry}.
+
+    Older result files nested entries by prompt style ({model: {"cot": entry, ...}});
+    keep the "cot" entry (the paper's prompt) and drop other styles.
+    """
     out = {}
-    for model, data in mr.items():
-        if isinstance(data, dict) and "correct" in data and "full_response" in data:
-            out[model] = {"cot": data}
-        elif isinstance(data, dict):
+    for model, data in (mr or {}).items():
+        if not isinstance(data, dict):
+            continue
+        if "correct" in data:
             out[model] = data
-        else:
-            out[model] = {}
+        elif isinstance(data.get("cot"), dict):
+            out[model] = data["cot"]
     return out
+
+
+def _needs_run(entry: Dict) -> bool:
+    return entry is None or entry.get("judge_method") in RETRY_METHODS
+
+
+def _evaluate_one(model: str, ann: Dict, image_data: List[str]) -> Dict:
+    full, final, usage = run_model(model, ann["question"], image_data, ann.get("subtype_id"))
+    correct, method = judge_answer(ann["question"], ann["answer"], full, final, ann.get("subtype_id"))
+    entry = {"full_response": full, "final_answer": final, "correct": correct, "judge_method": method}
+    if usage:
+        entry.update({k: usage[k] for k in ("prompt_tokens", "completion_tokens", "thought_token_count") if k in usage})
+    return entry
 
 
 def run_evaluation(
@@ -354,15 +362,11 @@ def run_evaluation(
     models: List[str],
     resume: bool = True,
     limit: int = None,
-    only_new_models: bool = True,
-    prompt_styles: List[str] = None,
     output_file: str = None,
     concurrent_models: int = 1,
     only_class: str = None,
 ) -> Dict:
     out_path = output_file or DEFAULT_OUTPUT_FILE
-    if prompt_styles is None:
-        prompt_styles = ["cot"]
 
     results = {"evaluations": [], "summary": {}}
     if resume and os.path.exists(out_path):
@@ -376,17 +380,18 @@ def run_evaluation(
     filtered = [a for a in annotations if (a.get("class_id") or "") == only_class] \
         if only_class else list(annotations)
 
-    to_new, to_partial = [], []
+    # (annotation, models still to run): existing entries missing a model or with
+    # an API/judge error are rerun; questions not in the results file are new.
+    to_partial, to_new = [], []
     for ann in filtered:
         key = f"{ann['uuid']}_{ann['question_idx']}"
-        if key not in eval_index:
-            to_new.append(ann)
-        elif only_new_models:
-            mr = results["evaluations"][eval_index[key]].get("model_results", {})
-            missing = [(m, ps) for m in models for ps in prompt_styles if mr.get(m, {}).get(ps) is None]
-            if missing:
-                ann["missing_pairs"] = missing
-                to_partial.append(ann)
+        if key in eval_index:
+            mr = results["evaluations"][eval_index[key]]["model_results"]
+            pending = [m for m in models if _needs_run(mr.get(m))]
+            if pending:
+                to_partial.append((ann, pending))
+        else:
+            to_new.append((ann, list(models)))
 
     if limit is not None:
         to_new = to_new[:limit]
@@ -395,38 +400,15 @@ def run_evaluation(
     if only_class:
         print(f"Filtered to class {only_class}: {len(filtered)}")
     print(f"Already evaluated: {len(eval_index) - len(to_partial)}")
-    print(f"Needs new model results: {len(to_partial)}")
+    print(f"Needs new or retried model results: {len(to_partial)}")
     print(f"New questions to evaluate: {len(to_new)}")
     print(f"Models: {models}")
-    print(f"Prompt styles: {prompt_styles}")
 
-    if to_partial:
-        print(f"\n--- Updating {len(to_partial)} existing entries ---")
-        for ann in tqdm(to_partial, desc="Updating"):
-            key = f"{ann['uuid']}_{ann['question_idx']}"
-            idx = eval_index[key]
-            image_data = [load_image_base64(ann["image_paths"][0])] if ann.get("image_paths") else []
-            for model, ps in ann["missing_pairs"]:
-                print(f"\n  {model} [{ps}] for {key}...")
-                full, final, usage = run_model(model, ann["question"], image_data, ps, ann.get("subtype_id"))
-                correct, method = judge_answer(ann["question"], ann["answer"], full, final, ann.get("subtype_id"))
-                if results["evaluations"][idx]["model_results"].get(model) is None:
-                    results["evaluations"][idx]["model_results"][model] = {}
-                entry = {"full_response": full, "final_answer": final, "correct": correct, "judge_method": method}
-                if usage:
-                    entry.update({k: usage[k] for k in ("prompt_tokens", "completion_tokens", "thought_token_count") if k in usage})
-                results["evaluations"][idx]["model_results"][model][ps] = entry
-                time.sleep(1)
-            _print_result(results["evaluations"][idx])
-            with open(out_path, "w", encoding="utf-8") as f:
-                json.dump(results, f, indent=2, ensure_ascii=False)
-
-    if to_new:
-        print(f"\n--- Evaluating {len(to_new)} new questions ---")
-        for ann in tqdm(to_new, desc="Evaluating"):
-            key = f"{ann['uuid']}_{ann['question_idx']}"
-            image_data = [load_image_base64(ann["image_paths"][0])] if ann.get("image_paths") else []
-
+    for ann, pending in tqdm(to_partial + to_new, desc="Evaluating"):
+        key = f"{ann['uuid']}_{ann['question_idx']}"
+        if key in eval_index:
+            eval_result = results["evaluations"][eval_index[key]]
+        else:
             eval_result = {
                 "key":           key,
                 "uuid":          ann["uuid"],
@@ -439,44 +421,26 @@ def run_evaluation(
                 "image_id":      ann.get("image_id", ""),
                 "model_results": {},
             }
-
-            tasks = [(m, ps) for m in models for ps in prompt_styles]
-
-            if concurrent_models <= 1 or len(tasks) <= 1:
-                for model in models:
-                    eval_result["model_results"][model] = {}
-                    for ps in prompt_styles:
-                        print(f"\n  {model} [{ps}]...")
-                        full, final, usage = run_model(model, ann["question"], image_data, ps, ann.get("subtype_id"))
-                        correct, method = judge_answer(ann["question"], ann["answer"], full, final, ann.get("subtype_id"))
-                        entry = {"full_response": full, "final_answer": final, "correct": correct, "judge_method": method}
-                        if usage:
-                            entry.update({k: usage[k] for k in ("prompt_tokens", "completion_tokens", "thought_token_count") if k in usage})
-                        eval_result["model_results"][model][ps] = entry
-                        time.sleep(1)
-            else:
-                for model in models:
-                    eval_result["model_results"][model] = {}
-
-                def _run_one(m, ps):
-                    full, final, usage = run_model(m, ann["question"], image_data, ps, ann.get("subtype_id"))
-                    correct, method = judge_answer(ann["question"], ann["answer"], full, final, ann.get("subtype_id"))
-                    data = {"full_response": full, "final_answer": final, "correct": correct, "judge_method": method}
-                    if usage:
-                        data.update({k: usage[k] for k in ("prompt_tokens", "completion_tokens", "thought_token_count") if k in usage})
-                    return m, ps, data
-
-                with ThreadPoolExecutor(max_workers=min(concurrent_models, len(tasks))) as ex:
-                    futures = {ex.submit(_run_one, m, ps): (m, ps) for m, ps in tasks}
-                    for fut in as_completed(futures):
-                        m, ps, data = fut.result()
-                        eval_result["model_results"][m][ps] = data
-                time.sleep(1)
-
-            _print_result(eval_result)
             results["evaluations"].append(eval_result)
-            with open(out_path, "w", encoding="utf-8") as f:
-                json.dump(results, f, indent=2, ensure_ascii=False)
+            eval_index[key] = len(results["evaluations"]) - 1
+
+        image_data = [load_image_base64(ann["image_paths"][0])] if ann.get("image_paths") else []
+
+        if concurrent_models <= 1 or len(pending) <= 1:
+            for model in pending:
+                print(f"\n  {model}...")
+                eval_result["model_results"][model] = _evaluate_one(model, ann, image_data)
+                time.sleep(1)
+        else:
+            with ThreadPoolExecutor(max_workers=min(concurrent_models, len(pending))) as ex:
+                futures = {ex.submit(_evaluate_one, m, ann, image_data): m for m in pending}
+                for fut in as_completed(futures):
+                    eval_result["model_results"][futures[fut]] = fut.result()
+            time.sleep(1)
+
+        _print_result(eval_result)
+        with open(out_path, "w", encoding="utf-8") as f:
+            json.dump(results, f, indent=2, ensure_ascii=False)
 
     return results
 
@@ -487,13 +451,11 @@ def _print_result(eval_result: dict):
     print(f"[{eval_result.get('key', '')}] {q[:200]}{'...' if len(q) > 200 else ''}")
     print(f"Ground truth: {eval_result.get('ground_truth', '')}")
     print("-" * 60)
-    for model, by_style in eval_result.get("model_results", {}).items():
-        for ps, d in (by_style.items() if isinstance(by_style, dict) else []):
-            if isinstance(d, dict):
-                ans = (d.get("final_answer") or "").strip() or "(none)"
-                ok = d.get("correct", False)
-                method = d.get("judge_method", "")
-                print(f"  {model} [{ps}]: {ans[:150]}{'...' if len(ans) > 150 else ''}  => {'CORRECT' if ok else 'WRONG'} ({method})")
+    for model, d in eval_result.get("model_results", {}).items():
+        ans = (d.get("final_answer") or "").strip() or "(none)"
+        ok = d.get("correct", False)
+        method = d.get("judge_method", "")
+        print(f"  {model}: {ans[:150]}{'...' if len(ans) > 150 else ''}  => {'CORRECT' if ok else 'WRONG'} ({method})")
     print("=" * 60)
 
 
@@ -501,48 +463,37 @@ def _print_result(eval_result: dict):
 # Result analysis
 # ---------------------------------------------------------------------------
 
-def _iter_model_results(model_results: Dict):
-    """Yield (model, prompt_style, data) from nested or legacy model_results."""
-    for model, by_style in model_results.items():
-        if isinstance(by_style, dict) and "correct" in by_style and "full_response" in by_style:
-            yield model, "cot", by_style
-        elif isinstance(by_style, dict):
-            for ps, data in by_style.items():
-                if isinstance(data, dict) and "correct" in data:
-                    yield model, ps, data
-
-
 def analyze_results(results: Dict) -> Dict:
-    """Compute accuracy by model, by category, and by (model, prompt_style)."""
-    class_stats = defaultdict(lambda: defaultdict(lambda: defaultdict(lambda: {"correct": 0, "total": 0})))
-    model_stats = defaultdict(lambda: defaultdict(lambda: {"correct": 0, "total": 0}))
+    """Compute accuracy by model and by category."""
+    class_stats = defaultdict(lambda: defaultdict(lambda: {"correct": 0, "total": 0}))
+    model_stats = defaultdict(lambda: {"correct": 0, "total": 0, "errors": 0})
     token_agg = defaultdict(lambda: {"prompt_tokens": 0, "completion_tokens": 0, "thought_token_count": 0, "count": 0})
 
     for ev in results.get("evaluations", []):
         class_id = ev.get("class_id", "unknown")
-        for model, ps, data in _iter_model_results(ev.get("model_results", {})):
+        for model, data in _normalize_model_results(ev.get("model_results", {})).items():
             correct = data.get("correct", False)
-            class_stats[class_id][model][ps]["total"] += 1
+            class_stats[class_id][model]["total"] += 1
+            model_stats[model]["total"] += 1
             if correct:
-                class_stats[class_id][model][ps]["correct"] += 1
-            model_stats[model][ps]["total"] += 1
-            if correct:
-                model_stats[model][ps]["correct"] += 1
+                class_stats[class_id][model]["correct"] += 1
+                model_stats[model]["correct"] += 1
+            if data.get("judge_method") in RETRY_METHODS:
+                model_stats[model]["errors"] += 1
             for tok in ("prompt_tokens", "completion_tokens", "thought_token_count"):
                 if data.get(tok) is not None:
                     token_agg[model][tok] += data[tok]
             if data.get("prompt_tokens") is not None:
                 token_agg[model]["count"] += 1
 
-    summary = {"by_model": {}, "by_class": {}, "by_model_prompt": {}}
+    summary = {"by_model": {}, "by_class": {}}
 
-    for model, by_ps in model_stats.items():
-        total_c = sum(s["correct"] for s in by_ps.values())
-        total = sum(s["total"] for s in by_ps.values())
+    for model, s in model_stats.items():
         summary["by_model"][model] = {
-            "accuracy": round(total_c / total * 100, 2) if total else 0,
-            "correct": total_c,
-            "total": total,
+            "accuracy": round(s["correct"] / s["total"] * 100, 2) if s["total"] else 0,
+            "correct": s["correct"],
+            "total": s["total"],
+            "errors": s["errors"],
         }
         agg = token_agg[model]
         if agg["count"] > 0:
@@ -552,13 +503,6 @@ def analyze_results(results: Dict) -> Dict:
             if agg["thought_token_count"] > 0:
                 summary["by_model"][model]["avg_thought_tokens"] = round(agg["thought_token_count"] / n, 1)
 
-    for model, by_ps in model_stats.items():
-        summary["by_model_prompt"][model] = {
-            ps: {"accuracy": round(s["correct"] / s["total"] * 100, 2) if s["total"] else 0,
-                 "correct": s["correct"], "total": s["total"]}
-            for ps, s in by_ps.items()
-        }
-
     class_names = {}
     for ev in results.get("evaluations", []):
         cid = ev.get("class_id", "")
@@ -566,18 +510,15 @@ def analyze_results(results: Dict) -> Dict:
             class_names[cid] = ev.get("class_name", "")
 
     for class_id, by_model in class_stats.items():
-        total_c = sum(s["correct"] for bm in by_model.values() for s in bm.values())
-        total = sum(s["total"] for bm in by_model.values() for s in bm.values())
+        total_c = sum(s["correct"] for s in by_model.values())
+        total = sum(s["total"] for s in by_model.values())
         summary["by_class"][class_id] = {
             "name": class_names.get(class_id, ""),
             "avg_accuracy": round(total_c / total * 100, 2) if total else 0,
             "models": {
-                model: {
-                    ps: {"accuracy": round(s["correct"] / s["total"] * 100, 2) if s["total"] else 0,
-                         "correct": s["correct"], "total": s["total"]}
-                    for ps, s in by_ps.items()
-                }
-                for model, by_ps in by_model.items()
+                model: {"accuracy": round(s["correct"] / s["total"] * 100, 2) if s["total"] else 0,
+                        "correct": s["correct"], "total": s["total"]}
+                for model, s in by_model.items()
             },
         }
 
@@ -589,7 +530,7 @@ def print_summary(summary: Dict):
     print("EVALUATION SUMMARY")
     print("=" * 70)
 
-    print("\nOverall Accuracy (all prompt styles):")
+    print("\nOverall Accuracy:")
     print("-" * 50)
     for model, stats in sorted(summary["by_model"].items(), key=lambda x: -x[1]["accuracy"]):
         print(f"  {model:30s}: {stats['accuracy']:6.2f}%  ({stats['correct']}/{stats['total']})")
@@ -606,10 +547,16 @@ def print_summary(summary: Dict):
     for class_id in sorted(summary["by_class"].keys()):
         data = summary["by_class"][class_id]
         print(f"\n  {class_id}  {data['name']}  (avg {data['avg_accuracy']:.1f}%)")
-        for model in sorted(data["models"].keys()):
-            for ps, st in sorted(data["models"][model].items()):
-                bar = "█" * int(st["accuracy"] / 5) + "░" * (20 - int(st["accuracy"] / 5))
-                print(f"    {model:20s} [{ps}]: {bar} {st['accuracy']:5.1f}%  ({st['correct']}/{st['total']})")
+        for model, st in sorted(data["models"].items()):
+            bar = "█" * int(st["accuracy"] / 5) + "░" * (20 - int(st["accuracy"] / 5))
+            print(f"    {model:20s}: {bar} {st['accuracy']:5.1f}%  ({st['correct']}/{st['total']})")
+
+    errored = {m: s["errors"] for m, s in summary["by_model"].items() if s.get("errors")}
+    if errored:
+        print("\nWARNING: some answers failed with an API or judge error and are counted as incorrect:")
+        for model, n in sorted(errored.items()):
+            print(f"  {model:30s}: {n}")
+        print("Rerun the same command to retry them.")
 
 
 def merge_evaluation_results(file_paths: List[str], out_path: str) -> str:
@@ -628,10 +575,7 @@ def merge_evaluation_results(file_paths: List[str], out_path: str) -> str:
             if key not in by_key:
                 by_key[key] = {k: v for k, v in ev.items() if k != "model_results"}
                 by_key[key]["model_results"] = {}
-            for model, styles in ev.get("model_results", {}).items():
-                if model not in by_key[key]["model_results"]:
-                    by_key[key]["model_results"][model] = {}
-                by_key[key]["model_results"][model].update(styles)
+            by_key[key]["model_results"].update(_normalize_model_results(ev.get("model_results", {})))
     merged = {"evaluations": [by_key[k] for k in sorted(by_key)], "summary": {}}
     merged["summary"] = analyze_results(merged)
     with open(out_path, "w", encoding="utf-8") as f:
@@ -682,9 +626,6 @@ Full OpenRouter model list: https://openrouter.ai/models
                         help="Base directory for image files (default: same dir as --data)")
     parser.add_argument("--models", type=str, nargs="+", default=None, metavar="MODEL",
                         help="Model names to evaluate (see examples above)")
-    parser.add_argument("--prompt-styles", type=str, nargs="+", default=["cot"],
-                        choices=["cot", "direct"], metavar="STYLE",
-                        help="Prompt style(s): cot (default) or direct")
     parser.add_argument("--output", "-o", type=str, default=None, metavar="FILE",
                         help=f"Output JSON path (default: {DEFAULT_OUTPUT_FILE})")
     parser.add_argument("--limit", type=int, default=None, metavar="N",
@@ -735,7 +676,6 @@ Full OpenRouter model list: https://openrouter.ai/models
         print(f"  {cid:6s} {cnt:4d}  {cname}")
 
     print(f"\nModels:       {args.models}")
-    print(f"Prompt style: {args.prompt_styles}")
     print(f"Judge model:  {JUDGE_MODEL}")
     print(f"Output:       {out_path}")
 
@@ -743,7 +683,6 @@ Full OpenRouter model list: https://openrouter.ai/models
         annotations,
         models=args.models,
         limit=args.limit,
-        prompt_styles=args.prompt_styles,
         output_file=out_path,
         concurrent_models=args.concurrent_models,
         only_class=args.only_class,
@@ -755,14 +694,6 @@ Full OpenRouter model list: https://openrouter.ai/models
         json.dump(results, f, indent=2, ensure_ascii=False)
 
     print_summary(summary)
-    judge_errors = sum(
-        1 for ev in results.get("evaluations", [])
-        for _, _, d in _iter_model_results(ev.get("model_results", {}))
-        if d.get("judge_method") == "judge_error"
-    )
-    if judge_errors:
-        print(f"\nWARNING: {judge_errors} answers could not be judged (judge_method='judge_error') "
-              "and are counted as incorrect. Check the judge API key and rerun.")
     print(f"\nResults saved to {out_path}")
 
 

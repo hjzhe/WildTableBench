@@ -185,13 +185,15 @@ def run_openai_model(
     model_id: str,
     question: str,
     image_data: List[str] = None,
-    max_tokens: int = 65536,
+    max_tokens: Optional[int] = None,
     base_url: str = None,
 ) -> dict:
     """Call OpenAI API directly (or any OpenAI-compatible endpoint).
 
     Args:
         model_id: e.g. "gpt-4o", "gpt-4o-mini", "o3", "o4-mini"
+        max_tokens: output token cap; None uses the model's own maximum
+                    (fixed caps break models with smaller limits, e.g. gpt-4o's 16,384)
         base_url: Override API base URL (for Azure OpenAI, proxies, etc.)
                   Can also be set via OPENAI_BASE_URL env var.
     """
@@ -205,18 +207,21 @@ def run_openai_model(
         return "Error: OPENAI_API_KEY not set"
 
     _base_url = base_url or os.getenv("OPENAI_BASE_URL")
-    kwargs = {"api_key": api_key}
+    kwargs = {"api_key": api_key, "max_retries": 5}  # SDK retries 429/5xx with backoff
     if _base_url:
         kwargs["base_url"] = _base_url
     client = OpenAI(**kwargs)
 
+    request = {
+        "model": model_id,
+        "messages": [{"role": "user", "content": _build_image_content(question, image_data)}],
+    }
+    if max_tokens is not None:
+        # GPT-5.x and o-series reject max_tokens; max_completion_tokens works for all chat models
+        request["max_completion_tokens"] = max_tokens
+
     try:
-        response = client.chat.completions.create(
-            model=model_id,
-            messages=[{"role": "user", "content": _build_image_content(question, image_data)}],
-            # GPT-5.x and o-series reject max_tokens; max_completion_tokens works for all chat models
-            max_completion_tokens=max_tokens,
-        )
+        response = client.chat.completions.create(**request)
         text = response.choices[0].message.content or ""
         usage = None
         if response.usage:
