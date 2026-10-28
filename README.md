@@ -4,7 +4,7 @@
 
 📄 Paper: [WildTableBench: Benchmarking Multimodal Foundation Models on Table Understanding In the Wild](https://arxiv.org/abs/2605.01018)  
 🤗 Dataset: [jzhuang/WildTableBench](https://huggingface.co/datasets/jzhuang/WildTableBench)  
-🌐 Project Page: https://hjzhe.github.io/WildTableBench/
+🌐 Project Page: https://hjzhe.github.io/WildTableBench/ (browse [examples](https://hjzhe.github.io/WildTableBench/#examples))
 
 ## Dataset
 
@@ -16,11 +16,11 @@
 
 | ID | Name | Description |
 |----|------|-------------|
-| C1 | Cell-Level | Cell lookup, transcription, structural understanding |
-| C2 | Numerical | Arithmetic, conditional, multi-step calculation |
-| C3 | Verification | Fact-checking against table content |
-| C4 | Hypothesis | Trend analysis, comparison, inference |
-| C5 | Color | Color-based reasoning and visual attribute reading |
+| C1 | Cell-Level | Transcription, cell locating, semantic lookup & structure, Excel formula |
+| C2 | Numerical | Basic numerical, conditional numerical, multi-step conditional, ranking |
+| C3 | Verification | Value, aggregate, and conditional verification |
+| C4 | Hypothetical | Hypothetical condition, value modification, row operation |
+| C5 | Color | Color identification, color-based counting, color-based reasoning |
 
 ---
 
@@ -44,6 +44,8 @@ pip install -r requirements.txt
 ```
 
 ### 3. Set API keys
+
+Answers are judged by GPT-5.2 (as in the paper). The judge runs through OpenRouter if `OPENROUTER_API_KEY` is set, otherwise through the OpenAI API with `OPENAI_API_KEY`; the script exits early if neither is available.
 
 ```bash
 # OpenAI
@@ -139,7 +141,7 @@ python evaluate.py --help
 --output FILE         Output JSON path (default: evaluation_results.json)
 --limit N             Evaluate only the first N questions
 --only-class ID       Evaluate one category only (e.g. C2)
---judge-model MODEL   LLM used to judge answers (default: gpt4o)
+--judge-model MODEL   LLM used to judge answers (default: openai/gpt-5.2)
 --concurrent-models N Run N model calls in parallel per question
 --merge FILE [...]    Merge multiple result JSONs (use with -o)
 ```
@@ -149,10 +151,10 @@ python evaluate.py --help
 ## Citation
 
 ```bibtex
-@article{huang2025wildtablebench,
+@article{huang2026wildtablebench,
   title   = {WildTableBench: Benchmarking Multimodal Foundation Models on Table Understanding In the Wild},
   author  = {Junzhe Huang and Xiaoxiao Sun and Yan Yang and Yuxuan Hou and Ruotian Zhang and Sirui Li and Hehe Fan and Serena Yeung-Levy and Xin Yu},
   journal = {arXiv preprint arXiv:2605.01018},
-  year    = {2025},
+  year    = {2026},
 }
 ```

@@ -214,7 +214,8 @@ def run_openai_model(
         response = client.chat.completions.create(
             model=model_id,
             messages=[{"role": "user", "content": _build_image_content(question, image_data)}],
-            max_tokens=max_tokens,
+            # GPT-5.x and o-series reject max_tokens; max_completion_tokens works for all chat models
+            max_completion_tokens=max_tokens,
         )
         text = response.choices[0].message.content or ""
         usage = None

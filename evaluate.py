@@ -41,6 +41,7 @@ load_dotenv()
 
 from model_eva_api import (
     SUPPORTED_MODELS,
+    run_openai_model,
     run_openrouter_model,
 )
 
@@ -53,6 +54,7 @@ DEFAULT_OUTPUT_FILE = "evaluation_results.json"
 
 # Judge model: used to verify model answers against ground truth.
 # Set to any key in SUPPORTED_MODELS or an OpenRouter model ID (e.g. "openai/gpt-5.2").
+# "openai/..." judges use OpenRouter if OPENROUTER_API_KEY is set, else the OpenAI API directly.
 JUDGE_MODEL = "openai/gpt-5.2"
 
 # ---------------------------------------------------------------------------
@@ -186,22 +188,34 @@ def load_image_base64(image_path: str) -> str:
 # Judging
 # ---------------------------------------------------------------------------
 
-def _call_judge(prompt: str, retries: int = 3, backoff: float = 2.0) -> str:
+def _judge_fn():
+    """Return a prompt -> response callable for JUDGE_MODEL, or None if no API key can reach it."""
     fn = SUPPORTED_MODELS.get(JUDGE_MODEL)
+    if fn is not None:
+        return fn
+    if "/" not in JUDGE_MODEL:
+        return None
+    if os.getenv("OPENROUTER_API_KEY"):
+        return lambda prompt: run_openrouter_model(JUDGE_MODEL, prompt)
+    provider, model_id = JUDGE_MODEL.split("/", 1)
+    if provider == "openai" and os.getenv("OPENAI_API_KEY"):
+        return lambda prompt: run_openai_model(model_id, prompt)
+    return None
+
+
+def _call_judge(prompt: str, retries: int = 3, backoff: float = 2.0) -> str:
+    fn = _judge_fn()
+    if fn is None:
+        raise ValueError(f"Judge model {JUDGE_MODEL!r} is not reachable with the configured API keys.")
     for attempt in range(retries):
         try:
-            if fn is not None:
-                response = fn(prompt)
-            elif "/" in JUDGE_MODEL:
-                response = run_openrouter_model(JUDGE_MODEL, prompt)
-            else:
-                raise ValueError(f"Unknown judge model: {JUDGE_MODEL!r}. "
-                                 "Use a key from SUPPORTED_MODELS or an OpenRouter model ID.")
+            response = fn(prompt)
             if isinstance(response, dict):
                 response = response.get("content", "") or ""
             result = (response or "").strip()
             if result and not result.startswith("Error"):
                 return result
+            print(f"[Judge] attempt {attempt + 1}/{retries} failed: {result[:200] or 'empty response'}")
         except Exception as e:
             print(f"[Judge] attempt {attempt + 1}/{retries} failed: {e}")
         if attempt < retries - 1:
@@ -232,12 +246,15 @@ def judge_answer(
     )
     try:
         response_upper = _call_judge(prompt).upper()
+        if not response_upper:
+            # Judge unavailable: mark it so it is not silently counted as a wrong answer
+            return False, "judge_error"
         if "INCORRECT" in response_upper:
             return False, "llm"
         return "CORRECT" in response_upper, "llm"
     except Exception as e:
         print(f"Judge error: {e}")
-        return False, "llm"
+        return False, "judge_error"
 
 
 def extract_final_answer(response: str, class_id: str = None) -> str:
@@ -696,6 +713,10 @@ Full OpenRouter model list: https://openrouter.ai/models
     if args.models is None:
         parser.error("--models is required. Example: --models gpt4o")
 
+    if _judge_fn() is None:
+        parser.error(f"Judge model {JUDGE_MODEL!r} is not reachable. Set OPENROUTER_API_KEY, "
+                     "or OPENAI_API_KEY for an openai/* judge, or choose another --judge-model.")
+
     print("=" * 60)
     print("WildTableBench — Model Evaluation")
     print("=" * 60)
@@ -733,6 +754,14 @@ Full OpenRouter model list: https://openrouter.ai/models
         json.dump(results, f, indent=2, ensure_ascii=False)
 
     print_summary(summary)
+    judge_errors = sum(
+        1 for ev in results.get("evaluations", [])
+        for _, _, d in _iter_model_results(ev.get("model_results", {}))
+        if d.get("judge_method") == "judge_error"
+    )
+    if judge_errors:
+        print(f"\nWARNING: {judge_errors} answers could not be judged (judge_method='judge_error') "
+              "and are counted as incorrect. Check the judge API key and rerun.")
     print(f"\nResults saved to {out_path}")
 
 
